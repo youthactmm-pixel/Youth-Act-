@@ -1,8 +1,23 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 type Program = {
-  id: number
+  id: string
   title: string
   description: string
 }
@@ -48,7 +63,45 @@ function App() {
 
       <section className="intro-band" id="about"><div className="shell intro-grid"><p className="eyebrow">What we believe</p><div><h2>Young people are not waiting for the future. They are <em>building it now.</em></h2><p className="body-copy">YouthAct is a space for fresh thinking, honest conversations, and practical action. From the first spark of an idea to the moment it makes a difference, we are here to help it grow.</p><a className="text-link" href="#stories">Our approach <span>↗</span></a></div></div></section>
 
-      <section className="programs shell" id="programs"><div className="section-heading"><div><p className="eyebrow">Find your way in</p><h2>There is always<br /><em>room for you.</em></h2></div><p className="body-copy">Bring your questions, your energy, and whatever you are curious about. Start wherever feels right.</p></div><div className="program-grid">{programs.map((program, index) => <article className={`program-card card-${index + 1}`} key={program.id}><span className="card-number">0{index + 1}</span><h3>{program.title}</h3><p>{program.description}</p><a href="#connect" aria-label={`Learn about ${program.title}`}>↗</a></article>)}</div></section>
+      <section className="programs shell" id="programs">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Find your way in</p>
+            <h2>There is always<br /><em>room for you.</em></h2>
+          </div>
+          <p className="body-copy">Bring your questions, your energy, and whatever you are curious about. Start wherever feels right.</p>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <Carousel
+            opts={{ align: "start" }}
+            className="w-full"
+          >
+            <CarouselContent>
+              {programs.map((program, index) => (
+                <CarouselItem key={program.id} className="basis-full md:basis-1/2 lg:basis-1/3">
+                  <div className="p-1">
+                    <Card className="h-full rounded-3xl border-0 bg-white shadow-sm">
+                      <CardHeader className="pb-2">
+                        <span className="card-number">0{index + 1}</span>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <CardTitle className="text-xl font-semibold text-slate-900">{program.title}</CardTitle>
+                        <CardDescription className="text-sm leading-6 text-slate-600">
+                          {program.description}
+                        </CardDescription>
+                        <a className="text-link" href="#connect" aria-label={`Learn about ${program.title}`}>Learn more <span>↗</span></a>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious />
+            <CarouselNext />
+          </Carousel>
+        </div>
+      </section>
 
       <section className="quote-band" id="stories"><div className="shell quote-inner"><span className="quote-mark">“</span><blockquote>When we make space for each other, we find the courage to make something new.</blockquote><p>— A YouthAct community member</p></div></section>
 
