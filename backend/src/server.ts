@@ -20,6 +20,23 @@ function serializeCard(card: any) {
   }
 }
 
+app.get('/createCard', async (_request, response) => {
+  try {
+    const newCard = new Card({
+      title: '',
+      description: '',
+      category: '',
+      status: '',
+    })
+
+    await newCard.save()
+    response.status(201).json(serializeCard(newCard))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to create card'
+    response.status(400).json({ message: 'Unable to create card', error: errorMessage })
+  }
+})
+
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: 'youthact-api' })
 })

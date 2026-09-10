@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
+const Schema = mongoose.Schema;
 
-const cardSchema = new mongoose.Schema(
+const cardSchema = new Schema(
   {
     title: {
       type: String,
@@ -30,4 +31,6 @@ const cardSchema = new mongoose.Schema(
   },
 )
 
-export default mongoose.models.Card || mongoose.model('Card', cardSchema)
+const Card = mongoose.model('Card', cardSchema)
+
+export default Card
