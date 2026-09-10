@@ -16,21 +16,30 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-type Program = {
-  id: string
-  title: string
-  description: string
-}
+import type { CardModel } from './types/card'
+import { fetchCards } from './services/cardApi'
+import CardAdminPage from './pages/CardAdminPage'
 
 function App() {
-  const [programs, setPrograms] = useState<Program[]>([])
+  const [programs, setPrograms] = useState<CardModel[]>([])
+  const [currentPage, setCurrentPage] = useState<'home' | 'admin'>('home')
+
+  const loadPrograms = () => {
+    fetchCards()
+      .then((data) => setPrograms(data))
+      .catch(() => setPrograms([]))
+  }
 
   useEffect(() => {
-    fetch('/api/programs')
-      .then((response) => response.json())
-      .then((data: Program[]) => setPrograms(data))
-      .catch(() => setPrograms([]))
+    loadPrograms()
   }, [])
+
+  if (currentPage === 'admin') {
+    return <CardAdminPage onBack={() => {
+      setCurrentPage('home')
+      loadPrograms()
+    }} />
+  }
 
   return (
     <main>
@@ -48,7 +57,7 @@ function App() {
           <a href="#programs">Programs</a>
           <a href="#stories">Stories</a>
         </div>
-        <a className="nav-cta" href="#connect">Get involved <span>↗</span></a>
+        <button className="nav-cta" type="button" onClick={() => setCurrentPage('admin')}>Create card <span>↗</span></button>
       </nav>
 
       <section className="hero shell" id="top">
@@ -56,12 +65,30 @@ function App() {
           <p className="eyebrow">A community for young changemakers</p>
           <h1>Small steps.<br /><em>Real change.</em></h1>
           <p className="hero-intro">We bring young people together to learn, create, and take action for the communities they call home.</p>
-          <a className="button" href="#programs">Explore our work <span>↓</span></a></div>
-        <div className="hero-art" aria-label="Young people collaborating outdoors" role="img"><div className="art-note">Make room<br />for new ideas.</div><div className="art-sticker">Be<br /><strong>curious</strong></div></div>
-        <div className="hero-foot"><span>01 / 03</span><span className="line" /><span>Growing together since 2019</span></div>
+          <a className="button" href="#programs">Explore our work <span>↓</span></a>
+        </div>
+        <div className="hero-art" aria-label="Young people collaborating outdoors" role="img">
+          <div className="art-note">Make room<br />for new ideas.</div>
+          <div className="art-sticker">Be<br /><strong>curious</strong></div>
+        </div>
+        <div className="hero-foot">
+          <span>01 / 03</span><span className="line" />
+            <span>Growing together since 2019</span>
+        </div>
       </section>
 
-      <section className="intro-band" id="about"><div className="shell intro-grid"><p className="eyebrow">What we believe</p><div><h2>Young people are not waiting for the future. They are <em>building it now.</em></h2><p className="body-copy">YouthAct is a space for fresh thinking, honest conversations, and practical action. From the first spark of an idea to the moment it makes a difference, we are here to help it grow.</p><a className="text-link" href="#stories">Our approach <span>↗</span></a></div></div></section>
+      <section className="intro-band" id="about">
+        <div className="shell intro-grid">
+          <p className="eyebrow">What we believe</p>
+          <div>
+            <h2>Young people are not waiting for the future. They are 
+              <em>building it now.</em>
+            </h2>
+              <p className="body-copy">YouthAct is a space for fresh thinking, honest conversations, and practical action. From the first spark of an idea to the moment it makes a difference, we are here to help it grow.</p>
+              <a className="text-link" href="#stories">Our approach <span>↗</span></a>
+          </div>
+        </div>
+      </section>
 
       <section className="programs shell" id="programs">
         <div className="section-heading">
@@ -78,19 +105,19 @@ function App() {
             className="w-full"
           >
             <CarouselContent>
-              {programs.map((program, index) => (
-                <CarouselItem key={program.id} className="basis-full md:basis-1/2 lg:basis-1/3">
+              {programs.map((card, index) => (
+                <CarouselItem key={card.id} className="basis-full md:basis-1/2 lg:basis-1/3">
                   <div className="p-1">
                     <Card className="h-full rounded-3xl border-0 bg-white shadow-sm">
                       <CardHeader className="pb-2">
                         <span className="card-number">0{index + 1}</span>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <CardTitle className="text-xl font-semibold text-slate-900">{program.title}</CardTitle>
+                        <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
                         <CardDescription className="text-sm leading-6 text-slate-600">
-                          {program.description}
+                          {card.description}
                         </CardDescription>
-                        <a className="text-link" href="#connect" aria-label={`Learn about ${program.title}`}>Learn more <span>↗</span></a>
+                         <a className="text-link" href="#connect" aria-label={`Learn about ${card.title}`}>Learn more <span>↗</span></a>
                       </CardContent>
                     </Card>
                   </div>
