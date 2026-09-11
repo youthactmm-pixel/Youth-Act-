@@ -53,6 +53,7 @@ function App() {
           <a className="button" href="#programs">Explore our work <span>↓</span></a>
         </div>
         <div className="hero-art" aria-label="Young people collaborating outdoors" role="img">
+          <video className="hero-video" src="/yg.mp4" autoPlay muted loop playsInline />
           <div className="art-note">Make room<br />for new ideas.</div>
           <div className="art-sticker">Be<br /><strong>curious</strong></div>
         </div>
@@ -142,7 +143,7 @@ function App() {
                   strokeWidth="2" 
                   strokeLinecap="round" 
                   strokeLinejoin="round"
-                  className="nav-drop-icon"
+                  className="nav-drop-icon" 
                 >
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>            

@@ -49,7 +49,7 @@ export default function CardAdminPage({ onBack }: CardAdminPageProps) {
   }
 
   return (
-    <section className="admin-page">
+    <section className="admin-page fade-section">
       <div className="admin-page-top shell">
         <div>
           <p className="eyebrow">YouthAct Dashboard</p>

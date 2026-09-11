@@ -30,7 +30,7 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
   const googleMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(`${activeTown.town}, Myanmar`)}&z=${activeTown.zoom}&output=embed`
 
   return (
-    <section className="weather-page">
+    <section className="weather-page fade-section">
       <div className="weather-page-top shell">
         <div>
           <p className="eyebrow">Yangon Weather</p>
