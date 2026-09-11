@@ -19,10 +19,17 @@ import {
 import type { CardModel } from './types/card'
 import { fetchCards } from './services/cardApi'
 import CardAdminPage from './pages/CardAdminPage'
+import YangonWeatherPage from './pages/YangonWeatherPage'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 function App() {
   const [programs, setPrograms] = useState<CardModel[]>([])
-  const [currentPage, setCurrentPage] = useState<'home' | 'admin'>('home')
+  const [currentPage, setCurrentPage] = useState<'home' | 'admin' | 'weather'>('home')
 
   const loadPrograms = () => {
     fetchCards()
@@ -34,31 +41,9 @@ function App() {
     loadPrograms()
   }, [])
 
-  if (currentPage === 'admin') {
-    return <CardAdminPage onBack={() => {
-      setCurrentPage('home')
-      loadPrograms()
-    }} />
-  }
-
-  return (
+  const renderHomePage = () => (
     <main>
-        <link href="/src/style.css" rel="stylesheet"></link>
-      <nav className="nav shell">
-        <a className="brand" href="#top" aria-label="YouthAct home">
-          <span className="brand-mark">Y</span>
-          <span>Youth
-            <span>Act</span>
-          </span>
-        </a>
-        <div className="nav-links">
-          <a href="#whoweare">Who We Are</a>
-          <a href="#about">About us</a>
-          <a href="#programs">Programs</a>
-          <a href="#stories">Stories</a>
-        </div>
-        <button className="nav-cta" type="button" onClick={() => setCurrentPage('admin')}>Create card <span>↗</span></button>
-      </nav>
+      <link href="/src/style.css" rel="stylesheet"></link>
 
       <section className="hero shell" id="top">
         <div className="hero-copy">
@@ -134,6 +119,72 @@ function App() {
 
       <footer className="footer shell" id="connect"><div><a className="brand" href="#top"><span className="brand-mark">Y</span><span>Youth<span>Act</span></span></a><p className="footer-note">A little more possibility,<br />every day.</p></div><div className="footer-links"><a href="mailto:hello@youthact.org">hello@youthact.org</a><a href="#programs">Instagram ↗</a><a href="#programs">Facebook ↗</a></div><p className="copyright">© 2026 YouthAct</p></footer>
     </main>
+  )
+
+  return (
+    <div className="app-shell">
+      <nav className="nav shell">
+        <a className="brand" href="#top" aria-label="YouthAct home">
+          <span className="brand-mark">Y</span>
+          <span>Youth
+            <span>Act</span>
+          </span>
+        </a>
+        <div className="nav-links">
+          <div className="nav-dropdown">
+            <DropdownMenu>
+            <DropdownMenuTrigger className="nav-dropdown-button">
+              <span className="nav-dropdown-label">Who We are</span>
+                <svg 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                  className="nav-drop-icon"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>            
+              </DropdownMenuTrigger>
+            <DropdownMenuContent className="nav-dropdown-menu">
+              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'about'}>
+                <a href="#about">About us</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'programs'}>
+                <a href="#programs">Mission and values</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'stories'}>
+                <a href="#stories">Leadership</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'connect'}>
+                <a href="#connect">Policies</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'connect'}>
+                <a href="#connect">Partnerships</a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <a href="#about">About us</a>
+          <a href="#programs">Programs</a>
+          <a href="#stories">Stories</a>
+          <button className="nav-weather" type="button" onClick={() => setCurrentPage('weather')}>Weather</button>
+        </div>
+        <button className="nav-cta" type="button" onClick={() => setCurrentPage('admin')}>Create card <span>↗</span></button>
+      </nav>
+
+      {currentPage === 'admin' ? (
+        <CardAdminPage onBack={() => {
+          setCurrentPage('home')
+          loadPrograms()
+        }} />
+      ) : currentPage === 'weather' ? (
+        <YangonWeatherPage onBack={() => setCurrentPage('home')} />
+      ) : (
+        renderHomePage()
+      )}
+    </div>
   )
 }
 
