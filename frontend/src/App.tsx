@@ -20,16 +20,12 @@ import type { CardModel } from './types/card'
 import { fetchCards } from './services/cardApi'
 import CardAdminPage from './pages/CardAdminPage'
 import YangonWeatherPage from './pages/YangonWeatherPage'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 function App() {
   const [programs, setPrograms] = useState<CardModel[]>([])
   const [currentPage, setCurrentPage] = useState<'home' | 'admin' | 'weather'>('home')
+  const [whoWeAreOpen, setWhoWeAreOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const loadPrograms = () => {
     fetchCards()
@@ -131,41 +127,44 @@ function App() {
             <span>Act</span>
           </span>
         </a>
+
+        <button
+          className="mobile-menu-toggle"
+          type="button"
+          aria-label="Toggle navigation menu"
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          <span className="mobile-menu-icon">
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
+
         <div className="nav-links">
           <div className="nav-dropdown">
-            <DropdownMenu>
-            <DropdownMenuTrigger className="nav-dropdown-button">
-              <span className="nav-dropdown-label">Who We are</span>
-                <svg 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                  className="nav-drop-icon" 
-                >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>            
-              </DropdownMenuTrigger>
-            <DropdownMenuContent className="nav-dropdown-menu">
-              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'about'}>
-                <a href="#about">About us</a>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'programs'}>
-                <a href="#programs">Mission and values</a>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'stories'}>
-                <a href="#stories">Leadership</a>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'connect'}>
-                <a href="#connect">Policies</a>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="nav-dropdown-menu-item" onClick={() => window.location.hash = 'connect'}>
-                <a href="#connect">Partnerships</a>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              className="nav-dropdown-button"
+              onClick={() => setWhoWeAreOpen(!whoWeAreOpen)}
+            >
+              <span className="nav-dropdown-label">
+                Who We are
+              </span>
+
+              <span className={`nav-drop-icon ${whoWeAreOpen ? "open" : ""}`}>
+                ▼
+              </span>
+            </button>
+
+            {whoWeAreOpen && (
+              <div className="nav-dropdown-children">
+                <a href="/about">About us</a>
+                <a href="/mission">Mission and values</a>
+                <a href="/leadership">Leadership</a>
+                <a href="/partnerships">Partnerships</a>
+              </div>
+            )}
           </div>
           <a href="#about">About us</a>
           <a href="#programs">Programs</a>
@@ -174,6 +173,51 @@ function App() {
         </div>
         <button className="nav-cta" type="button" onClick={() => setCurrentPage('admin')}>Create card <span>↗</span></button>
       </nav>
+
+      <div className={`mobile-nav-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} />
+      <aside className={`mobile-nav-drawer ${mobileMenuOpen ? 'open' : ''}`}> 
+        <div className="mobile-nav-drawer-header">
+          <span className="brand brand-mobile">
+            <span className="brand-mark">Y</span>
+            <span>Youth<span>Act</span></span>
+          </span>
+          <button className="mobile-menu-close" type="button" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)}>×</button>
+        </div>
+
+        <div className="mobile-nav-drawer-content">
+          <div className="mobile-nav-section">
+            <div className="nav-dropdown-mobile">
+              <button className="nav-dropdown-button" onClick={() => setWhoWeAreOpen(!whoWeAreOpen)}>
+                <span className="nav-dropdown-label">Who We are</span>
+                <span className={`nav-drop-icon ${whoWeAreOpen ? "open" : ""}`}>▼</span>
+              </button>
+
+              {whoWeAreOpen && (
+                <div className="nav-dropdown-children-mobile">
+                  <a href="/about">About us</a>
+                  <a href="/mission">Mission and values</a>
+                  <a href="/leadership">Leadership</a>
+                  <a href="/policies">Policies</a>
+                  <a href="/partnerships">Partnerships</a>
+                </div>
+              )}
+            </div>
+
+            <a className="mobile-nav-link" href="#about" onClick={() => setMobileMenuOpen(false)}>About us</a>
+            <a className="mobile-nav-link" href="#programs" onClick={() => setMobileMenuOpen(false)}>Programs</a>
+            <a className="mobile-nav-link" href="#stories" onClick={() => setMobileMenuOpen(false)}>Stories</a>
+            <button className="mobile-nav-link nav-weather" type="button" onClick={() => {
+              setCurrentPage('weather')
+              setMobileMenuOpen(false)
+            }}>Weather</button>
+          </div>
+
+          <button className="mobile-nav-cta" type="button" onClick={() => {
+            setCurrentPage('admin')
+            setMobileMenuOpen(false)
+          }}>Create card <span>↗</span></button>
+        </div>
+      </aside>
 
       {currentPage === 'admin' ? (
         <CardAdminPage onBack={() => {
