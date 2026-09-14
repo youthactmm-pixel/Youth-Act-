@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 type YangonWeatherPageProps = {
   onBack: () => void
@@ -16,6 +17,7 @@ type TownWeather = {
   uvIndex: string
 }
 
+
 const townWeather: TownWeather[] = [
   { town: 'Yangon', temperature: 32, feelsLike: 34, humidity: 78, wind: 14, condition: 'Sunny', marker: '●', zoom: 12, uvIndex: 'High' },
   { town: 'Mawlamyine', temperature: 29, feelsLike: 30, humidity: 80, wind: 12, condition: 'Partly Cloudy', marker: '●', zoom: 11, uvIndex: 'Medium' },
@@ -28,7 +30,7 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
   const [selectedTown, setSelectedTown] = useState('Yangon')
   const activeTown = townWeather.find((item) => item.town === selectedTown) ?? townWeather[0]
   const googleMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(`${activeTown.town}, Myanmar`)}&z=${activeTown.zoom}&output=embed`
-
+  const navigate = useNavigate();
   return (
     <section className="weather-page fade-section">
       <div className="weather-page-top shell">
@@ -38,7 +40,7 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
         </div>
 
         <div className="weather-page-actions">
-          <button className="button button-dark" type="button" onClick={() => onBack()}>
+          <button className="button button-dark" type="button" onClick={() => navigate('/')}>
             Back to home <span>↗</span>
           </button>
         </div>
