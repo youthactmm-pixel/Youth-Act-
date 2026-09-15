@@ -9,26 +9,28 @@
           ComboboxList,
         } from "@/components/ui/combobox"
 
-       export default function TopNavbar() {
+       type TopNavbarProps = {
+         mobileMenuOpen: boolean;
+         onMobileMenuToggle: () => void;
+       };
+
+       export default function TopNavbar({ mobileMenuOpen, onMobileMenuToggle }: TopNavbarProps) {
           const navigate = useNavigate();
-          const [whoWeAreOpen, setWhoWeAreOpen] = useState(false);
-          const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+         const [whoWeAreOpen, setWhoWeAreOpen] = useState(false);
           const frameworks = ["East-Dagon", "North-Dagon", "South-Dagon", "Dagon-Seik-Kan", ]
       return (
       <nav className="nav">
         <a className="brand" href="#top" aria-label="YouthAct home">
-          <span className="brand-mark"><img src="/youthact.jpg" alt="YouthAct logo" /></span>
-          <span>Youth
-            <span>Act</span>
+          <span className="brand-mark"><img src="/tran-logo.png" alt="YouthAct logo" /></span>
+          <span>YOUTH ACT
           </span>
         </a>
-
         <button
           className="mobile-menu-toggle"
           type="button"
           aria-label="Toggle navigation menu"
           aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onClick={onMobileMenuToggle}
         >
           <span className="mobile-menu-icon">
             <span />

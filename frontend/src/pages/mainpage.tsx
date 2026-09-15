@@ -48,17 +48,15 @@ export function HomePage() {
   const renderHomePage = () => (
     <main>
       <link href="/src/style.css" rel="stylesheet"></link>
-          <img className="hero-img" src="/youthact2.png" alt="YouthAct hero" />
       <section className="hero shell" id="top">
+        <div className='hero-combine'>
         <div className="hero-copy">
           <p className="eyebrow">A community for young changemakers</p>
           <h1>Small steps.<br /><em>Real change.</em></h1>
           <p className="hero-intro">We bring young people together to learn, create, and take action for the communities they call home.</p>
           <a className="button" href="#programs">Explore our work <span>↓</span></a>
         </div>
-        <div className="hero-art" aria-label="Young people collaborating outdoors" role="img">
-          <div className="art-note">Make room<br />for new ideas.</div>
-          <div className="art-sticker">Be<br /><strong>curious</strong></div>
+        <img className="hero-img" src="/youthact2.jpg" alt="YouthAct campaign artwork" />
         </div>
         <div className="hero-foot">
           <span>01 / 03</span><span className="line" />
@@ -68,7 +66,10 @@ export function HomePage() {
 
       <section className="intro-band" id="about">
         <div className="shell intro-grid">
-          <p className="eyebrow">"Youth Act" is</p>
+          <div className="intro-brand">
+            <p className="eyebrow">"Youth Act" is</p>
+            <img className="intro-image" src="/youthact1.jpg" alt="YouthAct community members" />
+          </div>
           <div>
             <h2> A platform brought to life by passionate youth, dedicated to driving climate action and environmental advocacy for a greener, more sustainable future.  
               <em>building it now.</em>
@@ -119,20 +120,21 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="quote-band" id="stories"><div className="shell quote-inner"><span className="quote-mark">“</span><blockquote>When we make space for each other, we find the courage to make something new.</blockquote><p>— A YouthAct community member</p></div></section>
-
-      <footer className="footer shell" id="connect"><div><a className="brand" href="#top"><span className="brand-mark">Y</span><span>Youth<span>Act</span></span></a><p className="footer-note">A little more possibility,<br />every day.</p></div><div className="footer-links"><a href="mailto:hello@youthact.org">hello@youthact.org</a><a href="#programs">Instagram ↗</a><a href="#programs">Facebook ↗</a></div><p className="copyright">© 2026 YouthAct</p></footer>
+      <footer className="footer shell" id="connect"><div><a className="brand" href="#top"><span className="brand-mark"></span><span>Youth<span>Act</span></span></a><p className="footer-note">A little more possibility,<br />every day.</p></div><div className="footer-links"><a href="mailto:hello@youthact.org">hello@youthact.org</a><a href="#programs">Instagram ↗</a><a href="#programs">Facebook ↗</a></div><p className="copyright">© 2026 YouthAct</p></footer>
     </main>
   )
 
   return (
     <div className="app-shell">
-      <TopNavbar/>
+      <TopNavbar
+        mobileMenuOpen={mobileMenuOpen}
+        onMobileMenuToggle={() => setMobileMenuOpen((open) => !open)}
+      />
       <div className={`mobile-nav-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} />
       <aside className={`mobile-nav-drawer ${mobileMenuOpen ? 'open' : ''}`}> 
         <div className="mobile-nav-drawer-header">
           <span className="brand brand-mobile">
-            <span className="brand-mark">Y</span>
+          <span className="brand-mark"><img src="/tran-logo.png" alt="YouthAct logo" /></span>           
             <span>Youth<span>Act</span></span>
           </span>
           <button className="mobile-menu-close" type="button" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)}>×</button>
