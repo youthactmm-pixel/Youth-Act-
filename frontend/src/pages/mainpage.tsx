@@ -21,6 +21,7 @@ import CardAdminPage from './CardAdminPage'
 import YangonWeatherPage from './YangonWeatherPage'
 import { CardModel } from '@/types/card'
 import { fetchCards } from '@/services/cardApi'
+import TopNavbar from '@/components/ui/topnavbar'
 
 /**
  * App component - Main application component that manages the overall state and rendering of the application
@@ -47,7 +48,7 @@ export function HomePage() {
   const renderHomePage = () => (
     <main>
       <link href="/src/style.css" rel="stylesheet"></link>
-
+          <img className="hero-img" src="/youthact2.png" alt="YouthAct hero" />
       <section className="hero shell" id="top">
         <div className="hero-copy">
           <p className="eyebrow">A community for young changemakers</p>
@@ -56,7 +57,6 @@ export function HomePage() {
           <a className="button" href="#programs">Explore our work <span>↓</span></a>
         </div>
         <div className="hero-art" aria-label="Young people collaborating outdoors" role="img">
-          <video className="hero-video" src="/yg.mp4" autoPlay muted loop playsInline />
           <div className="art-note">Make room<br />for new ideas.</div>
           <div className="art-sticker">Be<br /><strong>curious</strong></div>
         </div>
@@ -68,9 +68,9 @@ export function HomePage() {
 
       <section className="intro-band" id="about">
         <div className="shell intro-grid">
-          <p className="eyebrow">What we believe</p>
+          <p className="eyebrow">"Youth Act" is</p>
           <div>
-            <h2>Young people are not waiting for the future. They are 
+            <h2> A platform brought to life by passionate youth, dedicated to driving climate action and environmental advocacy for a greener, more sustainable future.  
               <em>building it now.</em>
             </h2>
               <p className="body-copy">YouthAct is a space for fresh thinking, honest conversations, and practical action. From the first spark of an idea to the moment it makes a difference, we are here to help it grow.</p>
@@ -127,60 +127,7 @@ export function HomePage() {
 
   return (
     <div className="app-shell">
-      <nav className="nav shell">
-        <a className="brand" href="#top" aria-label="YouthAct home">
-          <span className="brand-mark">Y</span>
-          <span>Youth
-            <span>Act</span>
-          </span>
-        </a>
-
-        <button
-          className="mobile-menu-toggle"
-          type="button"
-          aria-label="Toggle navigation menu"
-          aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          <span className="mobile-menu-icon">
-            <span />
-            <span />
-            <span />
-          </span>
-        </button>
-
-        <div className="nav-links">
-          <div className="nav-dropdown">
-            <button
-              className="nav-dropdown-button"
-              onClick={() => setWhoWeAreOpen(!whoWeAreOpen)}
-            >
-              <span className="nav-dropdown-label">
-                Who We are
-              </span>
-
-              <span className={`nav-drop-icon ${whoWeAreOpen ? "open" : ""}`}>
-                ▼
-              </span>
-            </button>
-
-            {whoWeAreOpen && (
-              <div className="nav-dropdown-children">
-                <a href="/about">About us</a>
-                <a href="/mission">Mission and values</a>
-                <a href="/leadership">Leadership</a>
-                <a href="/partnerships">Partnerships</a>
-              </div>
-            )}
-          </div>
-          <a href="#about">About us</a>
-          <a href="#programs">Programs</a>
-          <a href="#stories">Stories</a>
-          <button className="nav-weather" type="button" onClick={() => navigate('/yangon-weather')}>Weather</button>
-        </div>
-        <button className="nav-cta" type="button" onClick={() => navigate('/admin')}>Create card <span>↗</span></button>
-      </nav>
-
+      <TopNavbar/>
       <div className={`mobile-nav-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} />
       <aside className={`mobile-nav-drawer ${mobileMenuOpen ? 'open' : ''}`}> 
         <div className="mobile-nav-drawer-header">

@@ -17,16 +17,46 @@ mongoose.connect(dburl)
   console.error('Error connecting to MongoDB Atlas:', error)
 })
 
-const configuredUri = process.env.MONGO_URI
+const configuredUri = (globalThis as typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> }
+}).process?.env?.MONGO_URI
 
 export async function connectDB() {
-  const mongoUri = process.env.MONGO_URI ?? configuredUri
+  const mongoUri = (globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> }
+  }).process?.env?.MONGO_URI ?? configuredUri
 
   if (!mongoUri) {
     throw new Error('MONGO_URI is not defined')
   }
 
-  await mongoose.connect(mongoUri, {})
+  await mongoose.connect(mongoUri, {
+    allowPartialTrustChain: undefined,
+    ALPNProtocols: undefined,
+    ca: undefined,
+    cert: undefined,
+    checkServerIdentity: undefined,
+    ciphers: undefined,
+    crl: undefined,
+    ecdhCurve: undefined,
+    key: undefined,
+    minDHSize: undefined,
+    passphrase: undefined,
+    pfx: undefined,
+    rejectUnauthorized: undefined,
+    secureContext: undefined,
+    secureProtocol: undefined,
+    servername: undefined,
+    session: undefined,
+    autoSelectFamily: undefined,
+    autoSelectFamilyAttemptTimeout: undefined,
+    keepAliveInitialDelay: undefined,
+    family: undefined,
+    hints: undefined,
+    localAddress: undefined,
+    localPort: undefined,
+    lookup: undefined
+  })
 
   console.log('MongoDB Atlas connected successfully')
 }

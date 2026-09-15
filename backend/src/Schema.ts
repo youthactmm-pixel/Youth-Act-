@@ -31,6 +31,21 @@ const cardSchema = new Schema(
   },
 )
 
-const Card = mongoose.model('Card', cardSchema)
+const townSchema = new Schema(
+  {
+    town: {
+      type: String,
+      required: [true, 'town is required'],
+      trim: true,
+    },
+  },
+  {
+    collection: 'towns',
+    timestamps: true,
+  },
+)
 
-export default Card
+const Card = mongoose.model('Card', cardSchema)
+const Town = mongoose.model('Town', townSchema)
+
+export { Card, Town }

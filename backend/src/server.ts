@@ -1,6 +1,6 @@
 import cors from 'cors'
 import express from 'express'
-import Card from './Card'
+import { Card  } from './Schema'
 import { connectDB } from './connectDB'
 
 const app = express()
@@ -23,6 +23,7 @@ function serializeCard(card: any) {
 app.get('/createCard', async (_request, response) => {
   try {
     const newCard = new Card({
+      id: '',
       title: '',
       description: '',
       category: '',
@@ -87,6 +88,8 @@ app.post('/api/cards', async (request, response) => {
     response.status(400).json({ message: 'Unable to create card', error: errorMessage })
   }
 })
+
+
 
 async function startServer() {
   await connectDB()

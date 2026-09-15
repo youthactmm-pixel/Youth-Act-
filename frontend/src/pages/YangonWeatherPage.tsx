@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-
+import TopNavbar from '@/components/ui/topnavbar'
 type YangonWeatherPageProps = {
   onBack: () => void
 }
@@ -19,34 +19,71 @@ type TownWeather = {
 
 
 const townWeather: TownWeather[] = [
-  { town: 'Yangon', temperature: 32, feelsLike: 34, humidity: 78, wind: 14, condition: 'Sunny', marker: '●', zoom: 12, uvIndex: 'High' },
-  { town: 'Mawlamyine', temperature: 29, feelsLike: 30, humidity: 80, wind: 12, condition: 'Partly Cloudy', marker: '●', zoom: 11, uvIndex: 'Medium' },
-  { town: 'Bago', temperature: 31, feelsLike: 33, humidity: 74, wind: 10, condition: 'Sunny', marker: '●', zoom: 11, uvIndex: 'High' },
-  { town: 'Taungoo', temperature: 30, feelsLike: 31, humidity: 76, wind: 13, condition: 'Light Rain', marker: '●', zoom: 11, uvIndex: 'Low' },
-  { town: 'Pathein', temperature: 30, feelsLike: 32, humidity: 82, wind: 15, condition: 'Humid', marker: '●', zoom: 11, uvIndex: 'Medium' },
+  { town: 'East-Dagon', temperature: 32, feelsLike: 34, humidity: 78, wind: 14, condition: 'Sunny', marker: '●', zoom: 12, uvIndex: 'High' },
+  { town: 'North-Dagon', temperature: 29, feelsLike: 30, humidity: 80, wind: 12, condition: 'Partly Cloudy', marker: '●', zoom: 11, uvIndex: 'Medium' },
+  { town: 'South-Dagon', temperature: 31, feelsLike: 33, humidity: 74, wind: 10, condition: 'Sunny', marker: '●', zoom: 11, uvIndex: 'High' },
+  { town: 'Dagon-Seik-Kan', temperature: 30, feelsLike: 31, humidity: 76, wind: 13, condition: 'Light Rain', marker: '●', zoom: 11, uvIndex: 'Low' },
 ]
-
 export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
-  const [selectedTown, setSelectedTown] = useState('Yangon')
+  const [selectedTown, setSelectedTown] = useState('East-Dagon')
   const activeTown = townWeather.find((item) => item.town === selectedTown) ?? townWeather[0]
   const googleMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(`${activeTown.town}, Myanmar`)}&z=${activeTown.zoom}&output=embed`
   const navigate = useNavigate();
   return (
+    
     <section className="weather-page fade-section">
-      <div className="weather-page-top shell">
-        <div>
-          <p className="eyebrow">Yangon Weather</p>
-          <h1>Yangon Region</h1>
-        </div>
-
-        <div className="weather-page-actions">
-          <button className="button button-dark" type="button" onClick={() => navigate('/')}>
-            Back to home <span>↗</span>
-          </button>
-        </div>
-      </div>
-
+      <TopNavbar />
       <section className="weather-dashboard shell">
+        <section className="map-panel">
+          <div className="map-panel-header">
+            <div>
+              <span className="weather-card-label">Location Map</span>
+              <span className="map-title">Yangon Region</span>
+            </div>
+          </div>
+
+          <iframe
+            title="Yangon Region Google Map"
+            className="map-frame"
+            src={googleMapUrl}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+
+          <div className="map-meta">
+            <span>{activeTown.town}, Myanmar</span>
+            <span className="meta-divider">|</span>
+            <span>Local time: 08:30 AM</span>
+          </div>
+
+          <div className="town-weather-list">
+            <div className="town-weather-title">
+              <span className="weather-card-label">Town Temperature</span>
+            </div>
+
+            {townWeather.map((item) => (
+              <div
+                className={`town-weather-row ${item.town === selectedTown ? 'selected-town' : ''}`}
+                key={item.town}
+                onClick={() => setSelectedTown(item.town)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setSelectedTown(item.town)
+                  }
+                }}
+              >
+                <span className="town-marker" aria-label={`Town marker for ${item.town}`}>{item.marker}</span>
+                <span className="town-name">{item.town}</span>
+                <span className="town-temp">{item.temperature}°C</span>
+                <span className="town-condition">{item.condition}</span>
+              </div>
+            ))}
+          </div>
+        </section>
         <section className="weather-card-panel">
           <div className="weather-card-header">
             <div>
@@ -64,7 +101,7 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
               <span className="temperature-unit">C</span>
             </div>
             <span className="weather-condition">{activeTown.condition}</span>
-          </div>
+          </div>    
 
           <div className="weather-summary">
             <div className="summary-row">
@@ -109,58 +146,7 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
           </div>
         </section>
 
-        <section className="map-panel">
-          <div className="map-panel-header">
-            <div>
-              <span className="weather-card-label">Location Map</span>
-              <span className="map-title">Yangon Region</span>
-            </div>
-            <span className="map-pin">●</span>
-          </div>
 
-          <iframe
-            title="Yangon Region Google Map"
-            className="map-frame"
-            src={googleMapUrl}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-
-          <div className="map-meta">
-            <span>{activeTown.town}, Myanmar</span>
-            <span className="meta-divider">|</span>
-            <span>Local time: 08:30 AM</span>
-          </div>
-
-          <div className="town-weather-list">
-            <div className="town-weather-title">
-              <span className="weather-card-label">Town Temperature</span>
-              <span className="town-list-icon">✦</span>
-            </div>
-
-            {townWeather.map((item) => (
-              <div
-                className={`town-weather-row ${item.town === selectedTown ? 'selected-town' : ''}`}
-                key={item.town}
-                onClick={() => setSelectedTown(item.town)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    setSelectedTown(item.town)
-                  }
-                }}
-              >
-                <span className="town-marker" aria-label={`Town marker for ${item.town}`}>{item.marker}</span>
-                <span className="town-name">{item.town}</span>
-                <span className="town-temp">{item.temperature}°C</span>
-                <span className="town-condition">{item.condition}</span>
-              </div>
-            ))}
-          </div>
-        </section>
       </section>
     </section>
   )

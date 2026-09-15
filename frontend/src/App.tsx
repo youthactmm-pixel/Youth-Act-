@@ -75,10 +75,10 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/admin" element={<AdminRoute />} />
           <Route path="/yangon-weather" element={<YangonWeatherPage onBack={function (): void {
             throw new Error('Function not implemented.');
           } } />} />
-          <Route path="/admin" element={<AdminRoute />} />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>
