@@ -7,7 +7,6 @@ main { overflow-x: hidden; }
 .nav-dropdown {
   position: relative;
 }
-
 .nav-dropdown-button {
   background: transparent;
   color: #21302e;
