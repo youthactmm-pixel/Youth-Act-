@@ -22,7 +22,7 @@ export default function ProgramsPage() {
         <section className="page-hero shell">
           <div>
             <p className="eyebrow">Find your way in</p>
-            <h1>There is always<br /><em>room for you.</em></h1>
+            <h1>There is always with you<em>room for you.</em></h1>
           </div>
           <p className="page-hero-copy">Bring your questions, your energy, and whatever you are curious about. Start wherever feels right.</p>
         </section>
@@ -36,13 +36,14 @@ export default function ProgramsPage() {
             <p className="body-copy">Every program is a different invitation to connect, grow, and contribute.</p>
           </div>
           <div className="program-page-grid">
-            {programs.map((program, index) => (
-              <article className={`program-page-card program-page-card-${(index % 3) + 1}`} key={program.id}>
+            {programs.map((Card, index) => (
+              <article className={`program-page-card program-page-card-${(index % 3) + 1}`} key={Card.id}>
+                <img src={Card.image} alt={Card.image} />
                 <span className="card-number">0{index + 1}</span>
-                <p className="program-category">{program.category}</p>
-                <h3>{program.title}</h3>
-                <p>{program.description}</p>
-                <Link className="text-link" to={`/project/${program.id}/projectdetailpage`}>Learn more <span>↗</span></Link>
+                <p className="program-category">{Card.category}</p>
+                <h3>{Card.title}</h3>
+                <p>{Card.description}</p>
+                <Link className="text-link" to={`/project/${Card.id}/projectdetailpage`}>Learn more <span>↗</span></Link>
               </article>
             ))}
           </div>

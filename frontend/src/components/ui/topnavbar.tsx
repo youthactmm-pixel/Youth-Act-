@@ -1,4 +1,4 @@
-        import { useState } from "react";
+        import { useEffect, useState } from "react";
         import { useNavigate } from "react-router-dom";
         import {
           Combobox,
@@ -8,6 +8,7 @@
           ComboboxItem,
           ComboboxList,
         } from "@/components/ui/combobox"
+        import { fetchTowns } from "@/services/cardApi"
 
        type TopNavbarProps = {
          mobileMenuOpen: boolean;
@@ -17,7 +18,22 @@
        export default function TopNavbar({ mobileMenuOpen, onMobileMenuToggle }: TopNavbarProps) {
           const navigate = useNavigate();
          const [whoWeAreOpen, setWhoWeAreOpen] = useState(false);
-          const frameworks = ["East-Dagon", "North-Dagon", "South-Dagon", "Dagon-Seik-Kan", ]
+          const [towns, setTowns] = useState<string[]>([])
+          const [selectedTown, setSelectedTown] = useState('')
+
+          useEffect(() => {
+            fetchTowns()
+              .then((data) => setTowns(data.map((item) => item.town)))
+              .catch(() => setTowns([]))
+          }, [])
+
+          const handleTownChange = (value: string | null) => {
+            const town = value ?? ''
+            setSelectedTown(town)
+            if (town) {
+              navigate(`/yangon-weather?town=${encodeURIComponent(town)}`)
+            }
+          }
       return (
       <nav className="nav">
         <a className="brand" href="/" aria-label="YouthAct home">
@@ -66,7 +82,7 @@
           <a href="/about">About us</a>
           <a href="/programs">Programs</a>
           <a href="/stories">Stories</a>
-          <Combobox items={frameworks}>
+          <Combobox items={towns} value={selectedTown} onValueChange={handleTownChange}>
             <ComboboxInput placeholder="Select an Area" />
             <ComboboxContent>
               <ComboboxEmpty>No items found.</ComboboxEmpty>

@@ -9,6 +9,7 @@ import AboutPage from './pages/AboutPage';
 import ProgramsPage from './pages/ProgramsPage';
 import StoriesPage from './pages/StoriesPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
+import CreateTownPage from './pages/CreateTownPage';
 
 class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error?: Error}> {
   constructor(props: {children: ReactNode}) {
@@ -73,6 +74,11 @@ function AdminRoute() {
   return <CardAdminPage onBack={() => navigate('/')} />;
 }
 
+function CreateTownRoute() {
+  const navigate = useNavigate();
+  return <CreateTownPage onBack={() => navigate('/')} />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -84,9 +90,8 @@ function App() {
           <Route path="/stories" element={<StoriesPage />} />
           <Route path="/project/:id/projectdetailpage" element={<ProjectDetailPage />} />
           <Route path="/admin" element={<AdminRoute />} />
-          <Route path="/yangon-weather" element={<YangonWeatherPage onBack={function (): void {
-            throw new Error('Function not implemented.');
-          } } />} />
+          <Route path="/create-town" element={<CreateTownRoute />} />
+          <Route path="/yangon-weather" element={<YangonWeatherPage />} />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

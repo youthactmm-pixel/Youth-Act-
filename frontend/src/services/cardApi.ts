@@ -1,5 +1,37 @@
 import type { CardCreateInput, CardModel } from '../types/card'
 
+export type TownModel = {
+  id: string
+  town: string
+}
+
+export async function fetchTowns(): Promise<TownModel[]> {
+  const response = await fetch('/api/towns')
+
+  if (!response.ok) {
+    throw new Error('Unable to load towns')
+  }
+
+  return response.json() as Promise<TownModel[]>
+}
+
+export async function createTown(town: string): Promise<TownModel> {
+  const response = await fetch('/api/towns', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ town }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null) as { message?: string; error?: string } | null
+    throw new Error(errorBody?.message ?? errorBody?.error ?? 'Unable to create town')
+  }
+
+  return response.json() as Promise<TownModel>
+}
+
 export async function fetchCards(): Promise<CardModel[]> {
   const response = await fetch('/api/cards')
 

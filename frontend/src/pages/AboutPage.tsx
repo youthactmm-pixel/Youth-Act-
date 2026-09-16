@@ -6,7 +6,9 @@ export default function AboutPage() {
     <div className="app-shell inner-page">
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
       <main>
-        <img className="hero-img-about" src="/nature.jpg" alt="YouthAct campaign artwork" />
+        <section className="about-hero shell">
+         <img  className="hero-img-about" src="/nature.jpg" alt="YouthAct campaign artwork" />
+        </section>
         <section className="page-hero shell">
           <div>
             <p className="eyebrow">Who we are</p>

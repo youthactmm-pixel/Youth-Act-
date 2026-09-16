@@ -41,6 +41,7 @@ const townSchema = new Schema(
     town: {
       type: String,
       required: [true, 'town is required'],
+      unique: true,
       trim: true,
     },
   },

@@ -1,34 +1,21 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import TopNavbar from '@/components/ui/topnavbar'
-type YangonWeatherPageProps = {
-  onBack: () => void
-}
+import { fetchTowns, type TownModel } from '@/services/cardApi'
 
-type TownWeather = {
-  town: string
-  temperature: number
-  feelsLike: number
-  humidity: number
-  wind: number
-  condition: string
-  marker: string
-  zoom: number
-  uvIndex: string
-}
+export default function YangonWeatherPage() {
+  const [searchParams] = useSearchParams()
+  const [towns, setTowns] = useState<TownModel[]>([])
 
+  useEffect(() => {
+    fetchTowns().then(setTowns).catch(() => setTowns([]))
+  }, [])
 
-const townWeather: TownWeather[] = [
-  { town: 'East-Dagon', temperature: 32, feelsLike: 34, humidity: 78, wind: 14, condition: 'Sunny', marker: '●', zoom: 12, uvIndex: 'High' },
-  { town: 'North-Dagon', temperature: 29, feelsLike: 30, humidity: 80, wind: 12, condition: 'Partly Cloudy', marker: '●', zoom: 11, uvIndex: 'Medium' },
-  { town: 'South-Dagon', temperature: 31, feelsLike: 33, humidity: 74, wind: 10, condition: 'Sunny', marker: '●', zoom: 11, uvIndex: 'High' },
-  { town: 'Dagon-Seik-Kan', temperature: 30, feelsLike: 31, humidity: 76, wind: 13, condition: 'Light Rain', marker: '●', zoom: 11, uvIndex: 'Low' },
-]
-export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
-  const [selectedTown, setSelectedTown] = useState('East-Dagon')
-  const activeTown = townWeather.find((item) => item.town === selectedTown) ?? townWeather[0]
-  const googleMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(`${activeTown.town}, Myanmar`)}&z=${activeTown.zoom}&output=embed`
-  const navigate = useNavigate();
+  const requestedTown = searchParams.get('town')
+  const activeTown = towns.find((item) => item.town === requestedTown) ?? towns[0]
+  const googleMapUrl = activeTown
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(`${activeTown.town}, Myanmar`)}&z=12&output=embed`
+    : ''
   return (
     
     <section className="weather-page fade-section">
@@ -44,17 +31,21 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
             </div>
           </div>
 
-          <iframe
-            title="Yangon Region Google Map"
-            className="map-frame"
-            src={googleMapUrl}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
+          {activeTown ? (
+            <iframe
+              title={`${activeTown.town} Google Map`}
+              className="map-frame"
+              src={googleMapUrl}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          ) : (
+            <div className="map-frame map-frame-empty">No town data found.</div>
+          )}
 
           <div className="map-meta">
-            <span>{activeTown.town}, Myanmar</span>
+            <span>{activeTown ? `${activeTown.town}, Myanmar` : 'Select an area'}</span>
             <span className="meta-divider">|</span>
             <span>Local time: 08:30 AM</span>
           </div>
@@ -64,24 +55,24 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
               <span className="weather-card-label">Town Temperature</span>
             </div>
 
-            {townWeather.map((item) => (
+            {towns.map((item) => (
               <div
-                className={`town-weather-row ${item.town === selectedTown ? 'selected-town' : ''}`}
-                key={item.town}
-                onClick={() => setSelectedTown(item.town)}
+                className={`town-weather-row ${item.town === activeTown?.town ? 'selected-town' : ''}`}
+                key={item.id}
+                onClick={() => window.location.assign(`/yangon-weather?town=${encodeURIComponent(item.town)}`)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault()
-                    setSelectedTown(item.town)
+                    window.location.assign(`/yangon-weather?town=${encodeURIComponent(item.town)}`)
                   }
                 }}
               >
-                <span className="town-marker" aria-label={`Town marker for ${item.town}`}>{item.marker}</span>
+                <span className="town-marker" aria-label={`Town marker for ${item.town}`}>●</span>
                 <span className="town-name">{item.town}</span>
-                <span className="town-temp">{item.temperature}°C</span>
-                <span className="town-condition">{item.condition}</span>
+                <span className="town-temp">--</span>
+                <span className="town-condition">Database location</span>
               </div>
             ))}
           </div>
@@ -90,37 +81,39 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
           <div className="weather-card-header">
             <div>
               <span className="weather-card-label">Today’s Weather</span>
-              <span className="weather-card-location">{activeTown.town}, Myanmar</span>
+              <span className="weather-card-location">
+                {activeTown ? `${activeTown.town}, Myanmar` : 'Select an area'}
+              </span>
             </div>
             <span className="weather-icon">
-              {activeTown.condition === 'Sunny' ? '☀️' : activeTown.condition === 'Partly Cloudy' ? '🌤️' : activeTown.condition === 'Light Rain' ? '🌧️' : '🌡️'}
+              📍
             </span>
           </div>
 
           <div className="temperature-row">
             <div>
-              <span className="temperature-main">{activeTown.temperature}°</span>
-              <span className="temperature-unit">C</span>
+              <span className="temperature-main">--</span>
+              <span className="temperature-unit">°C</span>
             </div>
-            <span className="weather-condition">{activeTown.condition}</span>
+            <span className="weather-condition">Database location</span>
           </div>    
 
           <div className="weather-summary">
             <div className="summary-row">
               <span className="summary-label">Feels like</span>
-              <span className="summary-value">{activeTown.feelsLike}° C</span>
+                <span className="summary-value">N/A</span>
             </div>
             <div className="summary-row">
               <span className="summary-label">Humidity</span>
-              <span className="summary-value">{activeTown.humidity}%</span>
+                <span className="summary-value">N/A</span>
             </div>
             <div className="summary-row">
               <span className="summary-label">Wind</span>
-              <span className="summary-value">{activeTown.wind} km/h</span>
+                <span className="summary-value">N/A</span>
             </div>
             <div className="summary-row">
               <span className="summary-label">UV Index</span>
-              <span className="summary-value">{activeTown.uvIndex}</span>
+                <span className="summary-value">N/A</span>
             </div>
           </div>
 

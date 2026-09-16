@@ -1,6 +1,6 @@
 import cors from 'cors'
 import express from 'express'
-import { Card  } from './Schema'
+import { Card, Town } from './Schema'
 import { connectDB } from './connectDB'
 import mongoose from 'mongoose'
 
@@ -19,6 +19,14 @@ function serializeCard(card: any) {
     category: plainCard?.category,
     status: plainCard?.status,
     image: plainCard?.image,
+  }
+}
+
+function serializeTown(town: any) {
+  const plainTown = typeof town?.toObject === 'function' ? town.toObject() : town
+  return {
+    id: plainTown?._id ? plainTown._id.toString() : plainTown?.id,
+    town: plainTown?.town,
   }
 }
 
@@ -43,6 +51,38 @@ app.get('/createCard', async (_request, response) => {
 
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: 'youthact-api' })
+})
+
+app.get('/api/towns', async (_request, response) => {
+  try {
+    const towns = await Town.find({}).sort({ town: 1 }).lean()
+    response.json(towns.map(serializeTown))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load towns'
+    response.status(500).json({ message: 'Unable to load towns', error: errorMessage })
+  }
+})
+
+app.post('/api/towns', async (request, response) => {
+  try {
+    const townName = typeof request.body.town === 'string' ? request.body.town.trim() : ''
+
+    if (!townName) {
+      response.status(400).json({ message: 'Town name is required' })
+      return
+    }
+
+    const newTown = await Town.create({ town: townName })
+    response.status(201).json(serializeTown(newTown))
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      response.status(409).json({ message: 'This town already exists' })
+      return
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Unable to create town'
+    response.status(400).json({ message: 'Unable to create town', error: errorMessage })
+  }
 })
 
 app.get('/api/programs', async (_request, response) => {

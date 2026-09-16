@@ -15,6 +15,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardImage
 } from "@/components/ui/card"
 
 import Threads from '@/components/Threads'
@@ -60,14 +61,13 @@ export function HomePage() {
         <div className="hero-copy fade-in-text">
           <p className="eyebrow">A community for young changemakers</p>
           <h1>Small steps.<br /><em>Real change.</em></h1>
-          <p className="hero-intro">We bring young people together to learn, create, and take action for the communities they call home.</p>
           <a className="button" href="#programs">Explore our work <span>↓</span></a>
         </div>
         <img className="hero-img" src="/youthact-Photoroom.png" alt="YouthAct campaign artwork" />
         </div>
         <div className="hero-foot">
           <span>01 / 03</span><span className="line" />
-            <span>Growing together since 2019</span>
+            <span>We bring young people together to learn, create, and take action for the communities they call home.</span>
         </div>
       </section>
 
@@ -105,11 +105,11 @@ export function HomePage() {
               {programs.map((card, index) => (
                 <CarouselItem key={card.id} className="basis-full md:basis-1/2 lg:basis-1/3">
                   <div className="p-1">
-                    <Card className="h-full rounded-3xl border-0 bg-white shadow-sm">
-                      <CardHeader className="pb-2">
-                        <span className="card-number">0{index + 1}</span>
-                      </CardHeader>
+                    <Card className="h-full shadow-sm">
                       <CardContent className="space-y-3">
+                        <CardImage className="h-full w-full ">
+                          <img className="h-full w-full object-cover" src={card.image} alt={card.image} />
+                        </CardImage>                        
                         <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
                         <CardDescription className="text-sm leading-6 text-slate-600">
                           {card.description}
