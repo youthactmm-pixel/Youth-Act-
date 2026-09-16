@@ -5,6 +5,10 @@ import { Component } from "react";
 import { HomePage } from './pages/mainpage';
 import YangonWeatherPage from './pages/YangonWeatherPage';
 import CardAdminPage from './pages/CardAdminPage';
+import AboutPage from './pages/AboutPage';
+import ProgramsPage from './pages/ProgramsPage';
+import StoriesPage from './pages/StoriesPage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
 
 class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error?: Error}> {
   constructor(props: {children: ReactNode}) {
@@ -75,6 +79,10 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/programs" element={<ProgramsPage />} />
+          <Route path="/stories" element={<StoriesPage />} />
+          <Route path="/project/:id/projectdetailpage" element={<ProjectDetailPage />} />
           <Route path="/admin" element={<AdminRoute />} />
           <Route path="/yangon-weather" element={<YangonWeatherPage onBack={function (): void {
             throw new Error('Function not implemented.');

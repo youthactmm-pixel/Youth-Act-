@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import '@/App.css'
 import {
   Carousel,
@@ -17,11 +17,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-import CardAdminPage from './CardAdminPage'
-import YangonWeatherPage from './YangonWeatherPage'
+import Threads from '@/components/Threads'
 import { CardModel } from '@/types/card'
 import { fetchCards } from '@/services/cardApi'
 import TopNavbar from '@/components/ui/topnavbar'
+import Footer from '@/components/ui/footer'
 
 /**
  * App component - Main application component that manages the overall state and rendering of the application
@@ -48,15 +48,22 @@ export function HomePage() {
   const renderHomePage = () => (
     <main>
       <link href="/src/style.css" rel="stylesheet"></link>
+        <div className="hero-threads fade-in-threads">
+          <Threads
+            color={[0.06274509803921569,0.7254901960784313,0.5058823529411764]}
+            amplitude={0.8}
+            distance={0.4}
+          />
+        </div>
       <section className="hero shell" id="top">
         <div className='hero-combine'>
-        <div className="hero-copy">
+        <div className="hero-copy fade-in-text">
           <p className="eyebrow">A community for young changemakers</p>
           <h1>Small steps.<br /><em>Real change.</em></h1>
           <p className="hero-intro">We bring young people together to learn, create, and take action for the communities they call home.</p>
           <a className="button" href="#programs">Explore our work <span>↓</span></a>
         </div>
-        <img className="hero-img" src="/youthact2.jpg" alt="YouthAct campaign artwork" />
+        <img className="hero-img" src="/youthact-Photoroom.png" alt="YouthAct campaign artwork" />
         </div>
         <div className="hero-foot">
           <span>01 / 03</span><span className="line" />
@@ -107,7 +114,7 @@ export function HomePage() {
                         <CardDescription className="text-sm leading-6 text-slate-600">
                           {card.description}
                         </CardDescription>
-                         <a className="text-link" href="#connect" aria-label={`Learn about ${card.title}`}>Learn more <span>↗</span></a>
+                         <Link className="text-link" to={`/project/${card.id}/projectdetailpage`} aria-label={`Learn about ${card.title}`}>Learn more <span>↗</span></Link>
                       </CardContent>
                     </Card>
                   </div>
@@ -119,8 +126,7 @@ export function HomePage() {
           </Carousel>
         </div>
       </section>
-
-      <footer className="footer shell" id="connect"><div><a className="brand" href="#top"><span className="brand-mark"></span><span>Youth<span>Act</span></span></a><p className="footer-note">A little more possibility,<br />every day.</p></div><div className="footer-links"><a href="mailto:hello@youthact.org">hello@youthact.org</a><a href="#programs">Instagram ↗</a><a href="#programs">Facebook ↗</a></div><p className="copyright">© 2026 YouthAct</p></footer>
+      <Footer />
     </main>
   )
 
@@ -159,9 +165,9 @@ export function HomePage() {
               )}
             </div>
 
-            <a className="mobile-nav-link" href="#about" onClick={() => setMobileMenuOpen(false)}>About us</a>
-            <a className="mobile-nav-link" href="#programs" onClick={() => setMobileMenuOpen(false)}>Programs</a>
-            <a className="mobile-nav-link" href="#stories" onClick={() => setMobileMenuOpen(false)}>Stories</a>
+            <a className="mobile-nav-link" href="/about" onClick={() => setMobileMenuOpen(false)}>About us</a>
+            <a className="mobile-nav-link" href="/programs" onClick={() => setMobileMenuOpen(false)}>Programs</a>
+            <a className="mobile-nav-link" href="/stories" onClick={() => setMobileMenuOpen(false)}>Stories</a>
             <button className="mobile-nav-link nav-weather" type="button" onClick={() => {
               navigate('/yangon-weather')
               setMobileMenuOpen(false)

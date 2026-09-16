@@ -32,7 +32,9 @@ export default function YangonWeatherPage({ onBack }: YangonWeatherPageProps) {
   return (
     
     <section className="weather-page fade-section">
-      <TopNavbar />
+      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={function (): void {
+        throw new Error('Function not implemented.')
+      } }/>
       <section className="weather-dashboard shell">
         <section className="map-panel">
           <div className="map-panel-header">

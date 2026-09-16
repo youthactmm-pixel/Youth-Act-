@@ -20,7 +20,7 @@
           const frameworks = ["East-Dagon", "North-Dagon", "South-Dagon", "Dagon-Seik-Kan", ]
       return (
       <nav className="nav">
-        <a className="brand" href="#top" aria-label="YouthAct home">
+        <a className="brand" href="/" aria-label="YouthAct home">
           <span className="brand-mark"><img src="/tran-logo.png" alt="YouthAct logo" /></span>
           <span>YOUTH ACT
           </span>
@@ -63,9 +63,9 @@
               </div>
             )}
           </div>
-          <a href="#about">About us</a>
-          <a href="#programs">Programs</a>
-          <a href="#stories">Stories</a>
+          <a href="/about">About us</a>
+          <a href="/programs">Programs</a>
+          <a href="/stories">Stories</a>
           <Combobox items={frameworks}>
             <ComboboxInput placeholder="Select an Area" />
             <ComboboxContent>

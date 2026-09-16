@@ -24,6 +24,11 @@ const cardSchema = new Schema(
       default: 'active',
       trim: true,
     },
+    image :{
+      type: String,
+      required: [true, 'photo is required'],
+      trim: true,
+    },
   },
   {
     collection: 'cards',

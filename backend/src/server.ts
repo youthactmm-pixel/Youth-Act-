@@ -2,12 +2,13 @@ import cors from 'cors'
 import express from 'express'
 import { Card  } from './Schema'
 import { connectDB } from './connectDB'
+import mongoose from 'mongoose'
 
 const app = express()
 const port = process.env.PORT || 4000
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
 
 function serializeCard(card: any) {
   const plainCard = typeof card?.toObject === 'function' ? card.toObject() : card
@@ -17,6 +18,7 @@ function serializeCard(card: any) {
     description: plainCard?.description,
     category: plainCard?.category,
     status: plainCard?.status,
+    image: plainCard?.image,
   }
 }
 
@@ -28,6 +30,7 @@ app.get('/createCard', async (_request, response) => {
       description: '',
       category: '',
       status: '',
+      image:'',
     })
 
     await newCard.save()
@@ -63,6 +66,11 @@ app.delete('/api/cards', async (_request, response) => {
 })
 
 app.get('/api/cards/:id', async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(404).json({ message: 'Card not found' })
+    return
+  }
+
   const card = await Card.findById(request.params.id)
 
   if (!card) {
@@ -73,6 +81,22 @@ app.get('/api/cards/:id', async (request, response) => {
   response.json(serializeCard(card))
 })
 
+app.get('/api/projects/:id', async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(404).json({ message: 'Project not found' })
+    return
+  }
+
+  const project = await Card.findById(request.params.id)
+
+  if (!project) {
+    response.status(404).json({ message: 'Project not found' })
+    return
+  }
+
+  response.json(serializeCard(project))
+})
+
 app.post('/api/cards', async (request, response) => {
   try {
     const newCard = await Card.create({
@@ -80,6 +104,7 @@ app.post('/api/cards', async (request, response) => {
       description: request.body.description,
       category: request.body.category,
       status: request.body.status ?? 'active',
+      image: request.body.image,
     })
 
     response.status(201).json(serializeCard(newCard))

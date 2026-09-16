@@ -24,6 +24,20 @@ export async function fetchCardById(cardId: string): Promise<CardModel | null> {
   return response.json() as Promise<CardModel>
 }
 
+export async function fetchProjectById(projectId: string): Promise<CardModel | null> {
+  const response = await fetch(`/api/projects/${projectId}`)
+
+  if (response.status === 404) {
+    return null
+  }
+
+  if (!response.ok) {
+    throw new Error('Unable to load project')
+  }
+
+  return response.json() as Promise<CardModel>
+}
+
 export async function createCard(card: CardCreateInput): Promise<CardModel> {
   const response = await fetch('/api/cards', {
     method: 'POST',
@@ -34,7 +48,8 @@ export async function createCard(card: CardCreateInput): Promise<CardModel> {
   })
 
   if (!response.ok) {
-    throw new Error('Unable to create card')
+    const errorBody = await response.json().catch(() => null) as { error?: string; message?: string } | null
+    throw new Error(errorBody?.error ?? errorBody?.message ?? 'Unable to create card')
   }
 
   return response.json() as Promise<CardModel>
