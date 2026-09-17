@@ -1,7 +1,32 @@
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
-
+import { useEffect, useState } from 'react';
+const API_URL = import.meta.env.VITE_API_URL;
 export default function AboutPage() {
+const [programs, setPrograms] = useState([]);
+    useEffect(() => {
+    const loadPrograms = async () => {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/programs`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `API Error: ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        setPrograms(data);
+      } catch (error) {
+        console.error('Failed to load programs:', error);
+      }
+    };
+
+    loadPrograms();
+  }, []);
   return (
     <div className="app-shell inner-page">
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
