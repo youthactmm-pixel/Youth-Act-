@@ -13,7 +13,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'https://youth-act-backend.onrender.com',
+      '/api': 'https://youth-act.onrender.com',
     },
   },
 })

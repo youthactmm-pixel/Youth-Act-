@@ -30,7 +30,7 @@ function serializeTown(town: any) {
   }
 }
 
-app.get('/createCard', async (_request, response) => {
+app.post('/createCard', async (_request, response) => {
   try {
     const newCard = new Card({
       id: '',
@@ -91,8 +91,13 @@ app.get('/api/programs', async (_request, response) => {
 })
 
 app.get('/api/cards', async (_request, response) => {
-  const cards = await Card.find({}).lean()
-  response.json(cards.map(serializeCard))
+  try {
+    const cards = await Card.find({}).sort({ createdAt: -1 }).lean()
+    response.json(cards.map(serializeCard))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load cards'
+    response.status(500).json({ message: 'Unable to load cards', error: errorMessage })
+  }
 })
 
 app.delete('/api/cards', async (_request, response) => {
