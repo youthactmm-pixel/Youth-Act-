@@ -19,8 +19,9 @@ import {
 } from "@/components/ui/card"
 
 import Threads from '@/components/Threads'
-import { CardModel } from '@/types/card'
+import { CardModel } from '@/services/Api'
 import { fetchCards } from '@/services/Api'
+import { Skeleton } from '@/components/ui/skeleton'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 
@@ -33,13 +34,18 @@ export function HomePage() {
 
   // State hooks for managing application data and UI state
   const [programs, setPrograms] = useState<CardModel[]>([]); // Array of program cards
+  const [isLoadingCards, setIsLoadingCards] = useState(true); // Loading state for cards fetch
   const [whoWeAreOpen, setWhoWeAreOpen] = useState(false); // State for "Who We Are" dropdown menu
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // State for mobile menu visibility
 
   const loadPrograms = () => {
+    setIsLoadingCards(true)
     fetchCards()
-      .then((data) => setPrograms(data))
+      .then((data) => {
+        setPrograms(data)
+      })
       .catch(() => setPrograms([]))
+      .finally(() => setIsLoadingCards(false))
   }
 
   useEffect(() => {
@@ -101,24 +107,40 @@ export function HomePage() {
             className="w-full"
           >
             <CarouselContent>
-              {programs.map((card, index) => (
-                <CarouselItem key={card.id} className="basis-full md:basis-1/2 lg:basis-1/3">
-                  <div className="p-1">
-                    <Card className="h-full shadow-sm">
-                      <CardContent className="space-y-3">
-                        <CardImage className="h-full w-full ">
-                          <img className="h-full w-full object-cover" src={card.image} alt={card.image} />
-                        </CardImage>                        
-                        <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
-                        <CardDescription className="text-sm leading-6 text-slate-600">
-                          {card.description}
-                        </CardDescription>
-                         <Link className="text-link" to={`/project/${card.id}/projectdetailpage`} aria-label={`Learn about ${card.title}`}>Learn more <span>↗</span></Link>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </CarouselItem>
-              ))}
+              {isLoadingCards
+                ? Array.from({ length: 3 }).map((_, index) => (
+                    <CarouselItem key={`skeleton-${index}`} className="basis-full md:basis-1/2 lg:basis-1/3">
+                      <div className="p-1">
+                        <Card className="h-full shadow-sm">
+                          <CardContent className="space-y-3">
+                            <Skeleton className="h-48 w-full rounded-xl" />
+                            <Skeleton className="h-6 w-2/3 rounded" />
+                            <Skeleton className="h-4 w-full rounded" />
+                            <Skeleton className="h-4 w-5/6 rounded" />
+                            <Skeleton className="h-5 w-24 rounded" />
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CarouselItem>
+                  ))
+                : programs.map((card) => (
+                    <CarouselItem key={card.id} className="basis-full md:basis-1/2 lg:basis-1/3">
+                      <div className="p-1">
+                        <Card className="h-full shadow-sm">
+                          <CardContent className="space-y-3">
+                            <CardImage className="h-full w-full ">
+                              <img className="h-full w-full object-cover" src={card.image} alt={card.image} />
+                            </CardImage>
+                            <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
+                            <CardDescription className="text-sm leading-6 text-slate-600">
+                              {card.description}
+                            </CardDescription>
+                            <Link className="text-link" to={`/project/${card.id}/projectdetailpage`} aria-label={`Learn about ${card.title}`}>Learn more <span>↗</span></Link>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CarouselItem>
+                  ))}
             </CarouselContent>
             <CarouselPrevious />
             <CarouselNext />

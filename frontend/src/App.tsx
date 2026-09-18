@@ -4,6 +4,7 @@ import {
   BrowserRouter,
   Routes,
   Route,
+  Navigate,
   useNavigate,
 } from 'react-router-dom';
 import { Component } from 'react';
@@ -16,6 +17,8 @@ import ProgramsPage from './pages/ProgramsPage';
 import StoriesPage from './pages/StoriesPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import CreateTownPage from './pages/CreateTownPage';
+import AdminLoginPage from './pages/AdminLoginPage';
+import { isAdminAuthenticated, clearAdminToken } from './services/auth';
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -112,9 +115,17 @@ class ErrorBoundary extends Component<
 function AdminRoute() {
   const navigate = useNavigate();
 
+  if (!isAdminAuthenticated()) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
   return (
     <CardAdminPage
       onBack={() => navigate('/')}
+      onLogout={() => {
+        clearAdminToken();
+        navigate('/admin/login');
+      }}
     />
   );
 }
@@ -122,8 +133,31 @@ function AdminRoute() {
 function CreateTownRoute() {
   const navigate = useNavigate();
 
+  if (!isAdminAuthenticated()) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
   return (
     <CreateTownPage
+      onBack={() => navigate('/admin')}
+      onLogout={() => {
+        clearAdminToken();
+        navigate('/admin/login');
+      }}
+    />
+  );
+}
+
+function AdminLoginRoute() {
+  const navigate = useNavigate();
+
+  if (isAdminAuthenticated()) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return (
+    <AdminLoginPage
+      onSuccess={() => navigate('/admin')}
       onBack={() => navigate('/')}
     />
   );
@@ -147,6 +181,11 @@ function App() {
           <Route
             path="/admin"
             element={<AdminRoute />}
+          />
+
+          <Route
+            path="/admin/login"
+            element={<AdminLoginRoute />}
           />
 
           <Route

@@ -1,9 +1,15 @@
-import { useState, type FormEvent } from 'react'
-import type { CardCreateInput } from '../types/card'
-import { createCard } from '../services/Api'
+import { useEffect, useState, type FormEvent } from 'react'
+import {
+  createCard,
+  fetchCards,
+  updateCard,
+  type CardCreateInput,
+  type CardModel,
+} from '../services/Api'
 
 type CardAdminPageProps = {
   onBack: () => void
+  onLogout: () => void
 }
 
 const emptyForm: CardCreateInput = {
@@ -39,10 +45,26 @@ function compressImage(file: File): Promise<string> {
   })
 }
 
-export default function CardAdminPage({ onBack }: CardAdminPageProps) {
+export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) {
   const [form, setForm] = useState<CardCreateInput>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
+  const [cards, setCards] = useState<CardModel[]>([])
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+
+  const loadCards = async () => {
+    try {
+      const nextCards = await fetchCards()
+      setCards(nextCards)
+    } catch (error) {
+      setCards([])
+      console.error(error)
+    }
+  }
+
+  useEffect(() => {
+    loadCards()
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -64,15 +86,40 @@ export default function CardAdminPage({ onBack }: CardAdminPageProps) {
     setMessage('')
 
     try {
-      await createCard(payload)
+      if (selectedCardId) {
+        await updateCard(selectedCardId, payload)
+        setMessage('Card updated successfully.')
+      } else {
+        await createCard(payload)
+        setMessage('Card created successfully.')
+      }
+
       setForm(emptyForm)
-      setMessage('Card created successfully.')
-      onBack()
+      setSelectedCardId(null)
+      await loadCards()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to create the card.')
+      setMessage(error instanceof Error ? error.message : 'Unable to save the card.')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function handleEdit(card: CardModel) {
+    setSelectedCardId(card.id)
+    setForm({
+      image: card.image,
+      title: card.title,
+      description: card.description,
+      category: card.category,
+      status: card.status,
+    })
+    setMessage('Editing card: ' + card.title)
+  }
+
+  function handleNewCard() {
+    setSelectedCardId(null)
+    setForm(emptyForm)
+    setMessage('')
   }
 
   return (
@@ -80,11 +127,16 @@ export default function CardAdminPage({ onBack }: CardAdminPageProps) {
       <div className="admin-page-top shell">
         <div>
           <p className="eyebrow">YouthAct Dashboard</p>
-          <h1>Create a card</h1>
+          <h1>{selectedCardId ? 'Edit card' : 'Create a card'}</h1>
         </div>
-        <button className="button button-dark" type="button" onClick={onBack}>
-          Back to home <span>↗</span>
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button className="button button-dark" type="button" onClick={onBack}>
+            Back to home <span>↗</span>
+          </button>
+          <button className="button button-dark" type="button" onClick={onLogout}>
+            Logout <span>↗</span>
+          </button>
+        </div>
       </div>
 
       <section className="card-form-section shell">
@@ -131,6 +183,7 @@ export default function CardAdminPage({ onBack }: CardAdminPageProps) {
               required
             />
           </label>
+
           <label className="field field-full">
             <span>Add Image</span>
             <input type="file"
@@ -156,17 +209,45 @@ export default function CardAdminPage({ onBack }: CardAdminPageProps) {
                   .catch((error) => setMessage(error instanceof Error ? error.message : 'Unable to process the selected image.'))
               }}
               placeholder="Add Image"
-              required
             />
           </label>
 
           <div className="form-actions">
             <button className="button button-dark" type="submit" disabled={submitting}>
-              {submitting ? 'Saving...' : 'Create card'} <span>↗</span>
+              {submitting ? 'Saving...' : selectedCardId ? 'Update card' : 'Create card'} <span>↗</span>
             </button>
+            {selectedCardId && (
+              <button className="button button-dark" type="button" onClick={handleNewCard}>
+                Create new card
+              </button>
+            )}
             {message && <span className="form-message">{message}</span>}
           </div>
         </form>
+      </section>
+
+      <section className="card-form-section shell" style={{ marginTop: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0 }}>Existing cards</h2>
+        </div>
+
+        <div style={{ display: 'grid', gap: '12px' }}>
+          {cards.length === 0 ? (
+            <p>No cards found yet.</p>
+          ) : (
+            cards.map((card) => (
+              <div key={card.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center', padding: '12px 16px', border: '1px solid #dfe7e5', borderRadius: '12px', background: 'rgba(255,255,255,0.6)' }}>
+                <div>
+                  <strong>{card.title}</strong>
+                  <div style={{ fontSize: '0.9rem', color: '#4f5d5a' }}>{card.category} · {card.status}</div>
+                </div>
+                <button className="button button-dark" type="button" onClick={() => handleEdit(card)}>
+                  Edit
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       </section>
     </section>
   )

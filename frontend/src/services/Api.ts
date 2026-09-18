@@ -23,6 +23,18 @@ export type CardCreateInput = {
 
 const API_BASE_URL = 'https://youth-act-backend.onrender.com'
 
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('youthact_admin_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+function jsonHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    ...getAuthHeaders(),
+  }
+}
+
 // =========================
 // Town API
 // =========================
@@ -40,9 +52,7 @@ export async function fetchTowns(): Promise<TownModel[]> {
 export async function createTown(town: string): Promise<TownModel> {
   const response = await fetch(`${API_BASE_URL}/api/towns`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: jsonHeaders(),
     body: JSON.stringify({ town }),
   })
 
@@ -58,6 +68,31 @@ export async function createTown(town: string): Promise<TownModel> {
       errorBody?.message ??
       errorBody?.error ??
       'Unable to create town'
+    )
+  }
+
+  return response.json() as Promise<TownModel>
+}
+
+export async function updateTown(townId: string, town: string): Promise<TownModel> {
+  const response = await fetch(`${API_BASE_URL}/api/towns/${townId}`, {
+    method: 'PUT',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ town }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response
+      .json()
+      .catch(() => null) as {
+        message?: string
+        error?: string
+      } | null
+
+    throw new Error(
+      errorBody?.message ??
+      errorBody?.error ??
+      'Unable to update town'
     )
   }
 
@@ -121,9 +156,7 @@ export async function createCard(
     `${API_BASE_URL}/api/cards`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: jsonHeaders(),
       body: JSON.stringify(card),
     }
   )
@@ -140,6 +173,37 @@ export async function createCard(
       errorBody?.error ??
       errorBody?.message ??
       'Unable to create card'
+    )
+  }
+
+  return response.json() as Promise<CardModel>
+}
+
+export async function updateCard(
+  cardId: string,
+  card: CardCreateInput
+): Promise<CardModel> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/cards/${cardId}`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders(),
+      body: JSON.stringify(card),
+    }
+  )
+
+  if (!response.ok) {
+    const errorBody = await response
+      .json()
+      .catch(() => null) as {
+        error?: string
+        message?: string
+      } | null
+
+    throw new Error(
+      errorBody?.error ??
+      errorBody?.message ??
+      'Unable to update card'
     )
   }
 

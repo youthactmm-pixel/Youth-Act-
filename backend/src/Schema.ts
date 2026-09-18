@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-const Schema = mongoose.Schema;
+const Schema = mongoose.Schema
 
 const cardSchema = new Schema(
   {
@@ -24,7 +24,7 @@ const cardSchema = new Schema(
       default: 'active',
       trim: true,
     },
-    image :{
+    image: {
       type: String,
       required: [true, 'photo is required'],
       trim: true,
@@ -51,7 +51,32 @@ const townSchema = new Schema(
   },
 )
 
+const userSchema = new Schema(
+  {
+    username: {
+      type: String,
+      required: [true, 'username is required'],
+      unique: true,
+      trim: true,
+      lowercase: true,
+    },
+    password: {
+      type: String,
+      required: [true, 'password is required'],
+    },
+    role: {
+      type: String,
+      default: 'admin',
+    },
+  },
+  {
+    collection: 'users',
+    timestamps: true,
+  },
+)
+
 const Card = mongoose.model('Card', cardSchema)
 const Town = mongoose.model('Town', townSchema)
+const User = mongoose.model('User', userSchema)
 
-export { Card, Town }
+export { Card, Town, User }
