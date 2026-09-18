@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 import { fetchProjectById } from '@/services/Api'
-import type { CardModel } from '@/types/card'
+import type { CardModel } from '@/services/Api'
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()

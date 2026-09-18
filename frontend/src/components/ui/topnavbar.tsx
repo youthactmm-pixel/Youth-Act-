@@ -1,5 +1,5 @@
         import { useEffect, useState } from "react";
-        import { useNavigate } from "react-router-dom";
+        import { Link, useNavigate } from "react-router-dom";
         import {
           Combobox,
           ComboboxContent,
@@ -36,11 +36,11 @@
           }
       return (
       <nav className="nav">
-        <a className="brand" href="/" aria-label="YouthAct home">
+        <Link className="brand" to="/" aria-label="YouthAct home">
           <span className="brand-mark"><img src="/tran-logo.png" alt="YouthAct logo" /></span>
           <span>YOUTH ACT
           </span>
-        </a>
+        </Link>
         <button
           className="mobile-menu-toggle"
           type="button"
@@ -72,16 +72,16 @@
 
             {whoWeAreOpen && (
               <div className="nav-dropdown-children">
-                <a href="/about">About us</a>
-                <a href="/mission">Mission and values</a>
-                <a href="/leadership">Leadership</a>
-                <a href="/partnerships">Partnerships</a>
+                <Link to="/about">About us</Link>
+                <Link to="/mission">Mission and values</Link>
+                <Link to="/leadership">Leadership</Link>
+                <Link to="/partnerships">Partnerships</Link>
               </div>
             )}
           </div>
-          <a href="/about">About us</a>
-          <a href="/programs">Programs</a>
-          <a href="/stories">Stories</a>
+          <Link to="/about">About us</Link>
+          <Link to="/programs">Programs</Link>
+          <Link to="/stories">Stories</Link>
           <Combobox items={towns} value={selectedTown} onValueChange={handleTownChange}>
             <ComboboxInput placeholder="Select an Area" />
             <ComboboxContent>
