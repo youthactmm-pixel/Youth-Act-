@@ -8,7 +8,7 @@
           ComboboxItem,
           ComboboxList,
         } from "@/components/ui/combobox"
-        import { fetchTowns } from "@/services/cardApi"
+        import { fetchTowns } from "@/services/Api"
 
        type TopNavbarProps = {
          mobileMenuOpen: boolean;

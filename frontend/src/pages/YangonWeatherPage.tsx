@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import TopNavbar from '@/components/ui/topnavbar'
-import { fetchTowns, type TownModel } from '@/services/cardApi'
+import { fetchTowns, type TownModel } from '@/services/Api'
 
 export default function YangonWeatherPage() {
   const [searchParams] = useSearchParams()

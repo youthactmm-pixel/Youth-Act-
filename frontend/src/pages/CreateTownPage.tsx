@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { createTown } from '../services/cardApi'
+import { createTown } from '../services/Api'
 
 type CreateTownPageProps = {
   onBack: () => void

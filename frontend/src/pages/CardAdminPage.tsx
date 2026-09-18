@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { CardCreateInput } from '../types/card'
-import { createCard } from '../services/cardApi'
+import { createCard } from '../services/Api'
 
 type CardAdminPageProps = {
   onBack: () => void

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import TopNavbar from '@/components/ui/topnavbar'
-import { fetchCards } from '@/services/cardApi'
+import { fetchCards } from '@/services/Api'
 import { CardModel } from '@/types/card'
 import Footer from '@/components/ui/footer'
 

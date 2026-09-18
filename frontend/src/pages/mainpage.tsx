@@ -20,7 +20,7 @@ import {
 
 import Threads from '@/components/Threads'
 import { CardModel } from '@/types/card'
-import { fetchCards } from '@/services/cardApi'
+import { fetchCards } from '@/services/Api'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 
@@ -48,7 +48,6 @@ export function HomePage() {
 
   const renderHomePage = () => (
     <main>
-      <link href="/src/style.css" rel="stylesheet"></link>
         <div className="hero-threads fade-in-threads">
           <Threads
             color={[0.06274509803921569,0.7254901960784313,0.5058823529411764]}

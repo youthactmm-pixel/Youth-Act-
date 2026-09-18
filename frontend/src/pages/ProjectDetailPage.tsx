@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
-import { fetchProjectById } from '@/services/cardApi'
+import { fetchProjectById } from '@/services/Api'
 import type { CardModel } from '@/types/card'
 
 export default function ProjectDetailPage() {
