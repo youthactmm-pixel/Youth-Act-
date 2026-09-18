@@ -12,7 +12,7 @@
 
     "dev": "tsx --watch src/server.ts",
 
-    "start": "tsx src/server.ts"
+    "start": "npm run build --prefix ../frontend && tsx src/server.ts"
 
   },
 
@@ -39,6 +39,8 @@
   },
 
   "devDependencies": {
+
+    "@types/bcrypt": "^6.0.0",
 
     "@types/cors": "^2.8.19",
 

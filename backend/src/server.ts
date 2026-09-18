@@ -2,9 +2,16 @@ import cors from 'cors'
 import express from 'express'
 import bcrypt from 'bcrypt'
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Card, Town, User } from './Schema'
 import { connectDB } from './connectDB'
 import mongoose from 'mongoose'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const frontendDistPath = path.resolve(__dirname, '../../frontend/dist')
 
 const app = express()
 const port = process.env.PORT || 4000
@@ -288,6 +295,25 @@ app.put('/api/cards/:id', requireAdmin, async (request, response) => {
     response.status(400).json({ message: 'Unable to update card', error: errorMessage })
   }
 })
+
+if (existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath, { index: false }))
+
+  app.use((request, response, next) => {
+    if (request.path.startsWith('/api')) {
+      next()
+      return
+    }
+
+    response.sendFile(path.join(frontendDistPath, 'index.html'), (error) => {
+      if (error) {
+        next(error)
+      }
+    })
+  })
+} else {
+  console.warn('Frontend dist not found. SPA fallback is disabled until the frontend is built.')
+}
 
 async function startServer() {
   await connectDB()

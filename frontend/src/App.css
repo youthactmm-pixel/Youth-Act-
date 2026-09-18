@@ -450,9 +450,7 @@ blockquote { margin: 20px 0 22px; font: 500 clamp(29px, 4vw, 51px)/1.05 'Space G
     gap: 15px;
   }
 
-   .nav-dropdown-mobile :hover{
-    color: #4ce03f;
-  }
+
   .nav-dropdown-button-mobile {
     width: 180px;
     padding: 8px 12px;
