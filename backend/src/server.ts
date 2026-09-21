@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Card, Town, User } from './Schema'
+import { Card, Town, User, GoogleSheetImport } from './Schema'
 import { connectDB } from './connectDB'
 import mongoose from 'mongoose'
 
@@ -45,6 +45,104 @@ function serializeTown(town: any) {
 function getBearerToken(request: express.Request) {
   const header = request.headers.authorization || ''
   return header.startsWith('Bearer ') ? header.slice(7) : null
+}
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index]
+
+    if (character === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (character === ',' && !inQuotes) {
+      values.push(current)
+      current = ''
+      continue
+    }
+
+    if ((character === '\n' || character === '\r') && !inQuotes) {
+      break
+    }
+
+    current += character
+  }
+
+  values.push(current)
+  return values.map((value) => value.trim())
+}
+
+function parseCsvRows(csvText: string): string[][] {
+  const rows = csvText
+    .split(/\r?\n/)
+    .filter((row) => row.trim().length > 0)
+    .map((row) => parseCsvLine(row))
+
+  return rows.filter((row) => row.some((value) => value.length > 0))
+}
+
+function normalizeFieldName(value: string) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, ' ')
+}
+
+function pickValue(record: Record<string, string>, candidates: string[]) {
+  const normalizedMap = Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [normalizeFieldName(key), value ?? ''])
+  )
+
+  for (const candidate of candidates) {
+    const normalized = normalizeFieldName(candidate)
+    if (normalizedMap[normalized]) {
+      return normalizedMap[normalized].trim()
+    }
+  }
+
+  return ''
+}
+
+function toGoogleSheetCard(record: Record<string, string>) {
+  const title = pickValue(record, ['title', 'name', 'project', 'headline'])
+  const description = pickValue(record, ['description', 'summary', 'details', 'about'])
+  const category = pickValue(record, ['category', 'type', 'program', 'theme'])
+  const status = pickValue(record, ['status', 'state', 'visibility']) || 'active'
+  const image = pickValue(record, ['image', 'photo', 'thumbnail', 'picture', 'url'])
+
+  return {
+    title: title || 'Untitled card',
+    description: description || 'Imported from Google Sheet',
+    category: category || 'general',
+    status: ['active', 'draft', 'archived'].includes(status.toLowerCase()) ? status.toLowerCase() : 'active',
+    image: image || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80',
+  }
+}
+
+function getGoogleSheetCsvUrl(sourceUrl: string) {
+  const trimmed = sourceUrl.trim()
+
+  if (/\.csv(?:\?|$)/i.test(trimmed) || /export\?format=csv/i.test(trimmed)) {
+    return trimmed
+  }
+
+  const spreadsheetIdMatch = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
+  const gidMatch = trimmed.match(/[?&]gid=(\d+)/i)
+
+  if (!spreadsheetIdMatch) {
+    return trimmed
+  }
+
+  const spreadsheetId = spreadsheetIdMatch[1]
+  const gid = gidMatch ? `&gid=${gidMatch[1]}` : ''
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv${gid}`
 }
 
 function requireAdmin(request: express.Request, response: express.Response, next: express.NextFunction) {
@@ -207,6 +305,70 @@ app.get('/api/cards', async (_request, response) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unable to load cards'
     response.status(500).json({ message: 'Unable to load cards', error: errorMessage })
+  }
+})
+
+app.post('/api/google-sheet/import', requireAdmin, async (request, response) => {
+  try {
+    const sourceUrl = typeof request.body?.sourceUrl === 'string' ? request.body.sourceUrl.trim() : ''
+
+    if (!sourceUrl) {
+      response.status(400).json({ message: 'Google Sheet URL is required' })
+      return
+    }
+
+    const csvUrl = getGoogleSheetCsvUrl(sourceUrl)
+    const csvResponse = await fetch(csvUrl)
+
+    if (!csvResponse.ok) {
+      throw new Error(`Unable to fetch Google Sheet: ${csvResponse.status}`)
+    }
+
+    const csvText = await csvResponse.text()
+    const rows = parseCsvRows(csvText)
+
+    if (rows.length < 2) {
+      response.status(400).json({ message: 'No data rows found in the Google Sheet' })
+      return
+    }
+
+    const headerRow = rows[0].map((header) => header.trim())
+    const dataRows = rows.slice(1)
+    const records = dataRows.map((row) => {
+      const record: Record<string, string> = {}
+      headerRow.forEach((header, index) => {
+        record[header] = row[index] ?? ''
+      })
+      return record
+    })
+
+    const cardsToCreate = records.map((record) => toGoogleSheetCard(record))
+
+    const createdCards = await Card.insertMany(cardsToCreate)
+
+    await GoogleSheetImport.create({
+      sourceUrl,
+      status: 'success',
+      headers: headerRow,
+      rowCount: createdCards.length,
+    })
+
+    response.status(201).json({
+      importedCount: createdCards.length,
+      cards: createdCards.map(serializeCard),
+      sourceUrl,
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to import Google Sheet'
+
+    await GoogleSheetImport.create({
+      sourceUrl: typeof (request.body ?? {})?.sourceUrl === 'string' ? request.body.sourceUrl.trim() : '',
+      status: 'failed',
+      headers: [],
+      rowCount: 0,
+    }).catch(() => undefined)
+
+    response.status(400).json({ message: 'Unable to import Google Sheet', error: errorMessage })
   }
 })
 

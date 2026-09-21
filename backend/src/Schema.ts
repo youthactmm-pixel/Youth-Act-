@@ -36,21 +36,6 @@ const cardSchema = new Schema(
   },
 )
 
-const townSchema = new Schema(
-  {
-    town: {
-      type: String,
-      required: [true, 'town is required'],
-      unique: true,
-      trim: true,
-    },
-  },
-  {
-    collection: 'towns',
-    timestamps: true,
-  },
-)
-
 const userSchema = new Schema(
   {
     username: {
@@ -75,8 +60,36 @@ const userSchema = new Schema(
   },
 )
 
-const Card = mongoose.model('Card', cardSchema)
-const Town = mongoose.model('Town', townSchema)
-const User = mongoose.model('User', userSchema)
+const googleSheetImportSchema = new Schema(
+  {
+    sourceUrl: {
+      type: String,
+      required: [true, 'sourceUrl is required'],
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ['success', 'failed', 'pending'],
+      default: 'pending',
+      trim: true,
+    },
+    headers: {
+      type: [String],
+      default: [],
+    },
+    rowCount: {
+      type: Number,
+      default: 0,
+    },
+  },
+  {
+    collection: 'googleSheetImports',
+    timestamps: true,
+  },
+)
 
-export { Card, Town, User }
+const Card = mongoose.model('Card', cardSchema)
+const User = mongoose.model('User', userSchema)
+const GoogleSheetImport = mongoose.model('GoogleSheetImport', googleSheetImportSchema)
+
+export { Card, User, GoogleSheetImport }

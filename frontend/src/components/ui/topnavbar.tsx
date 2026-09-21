@@ -8,7 +8,7 @@
           ComboboxItem,
           ComboboxList,
         } from "@/components/ui/combobox"
-        import { fetchTowns } from "@/services/Api"
+        import { fetchGoogleSheetTowns, fetchTowns } from "@/services/Api"
 
        type TopNavbarProps = {
          mobileMenuOpen: boolean;
@@ -22,9 +22,22 @@
           const [selectedTown, setSelectedTown] = useState('')
 
           useEffect(() => {
-            fetchTowns()
-              .then((data) => setTowns(data.map((item) => item.town)))
-              .catch(() => setTowns([]))
+            fetchGoogleSheetTowns()
+              .then((data) => {
+                if (data.length > 0) {
+                  setTowns(data.map((item) => item.town))
+                  return
+                }
+
+                return fetchTowns()
+                  .then((items) => setTowns(items.map((item) => item.town)))
+                  .catch(() => setTowns([]))
+              })
+              .catch(() => {
+                fetchTowns()
+                  .then((items) => setTowns(items.map((item) => item.town)))
+                  .catch(() => setTowns([]))
+              })
           }, [])
 
           const handleTownChange = (value: string | null) => {
@@ -79,7 +92,6 @@
               </div>
             )}
           </div>
-          <Link to="/about">About us</Link>
           <Link to="/programs">Programs</Link>
           <Link to="/stories">Stories</Link>
           <Combobox items={towns} value={selectedTown} onValueChange={handleTownChange}>

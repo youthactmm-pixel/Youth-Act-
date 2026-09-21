@@ -1,43 +1,63 @@
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 import { useEffect, useState } from 'react'
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle,
+  CardImage,
+} from '@/components/ui/card'
+import { Link } from 'react-router-dom'
+import { Skeleton } from '@/components/ui/skeleton'
+import { CardModel, fetchCards } from '@/services/Api'
 
 export default function AboutPage() {
-  const [programs, setPrograms] = useState([])
+  const [programs, setPrograms] = useState<CardModel[]>([])
+  const [isLoadingCards, setIsLoadingCards] = useState(true)
 
   useEffect(() => {
-    const loadPrograms = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/programs` || '/api/programs')
-
-        if (!response.ok) {
-          throw new Error(`API Error: ${response.status}`)
-        }
-
-        const data = await response.json()
-        setPrograms(data)
-      } catch (error) {
-        console.error('Failed to load programs:', error)
-      }
+    const loadPrograms = () => {
+      setIsLoadingCards(true)
+      fetchCards()
+        .then((data) => {
+          setPrograms(data)
+        })
+        .catch(() => setPrograms([]))
+        .finally(() => setIsLoadingCards(false))
     }
 
-    void loadPrograms()
+    loadPrograms()
   }, [])
+
   return (
     <div className="app-shell inner-page">
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+
       <main>
         <section className="about-hero shell">
-         <img  className="hero-img-about" src="/nature.jpg" alt="YouthAct campaign artwork" />
+          <img className="hero-img-about" src="/nature.jpg" alt="YouthAct campaign artwork" />
         </section>
+
         <section className="page-hero shell">
           <div>
             <p className="eyebrow">Who we are</p>
-            <h1>Young people<br /><em>moving forward.</em></h1>
+            <h1>
+              Young people
+              <br />
+              <em>moving forward.</em>
+            </h1>
           </div>
-          <p className="page-hero-copy">YouthAct is a platform for young people who care deeply about their communities and are ready to turn that care into action.</p>
+          <p className="page-hero-copy">
+            YouthAct is a platform for young people who care deeply about their communities and are ready to turn that care into action.
+          </p>
         </section>
 
         <section className="about-feature shell">
@@ -45,23 +65,57 @@ export default function AboutPage() {
           <div>
             <p className="eyebrow">Our reason to gather</p>
             <h2>Change starts with a room full of people who are willing to listen.</h2>
-            <p className="body-copy">We create space for fresh thinking, honest conversations, and practical projects. Our work connects young people with the knowledge, confidence, and community they need to shape a greener, fairer future.</p>
+            <p className="body-copy">
+              We create space for fresh thinking, honest conversations, and practical projects. Our work connects young people with the knowledge, confidence, and community they need to shape a greener, fairer future.
+            </p>
           </div>
         </section>
 
-        <section className="about-values">
-          <div className="shell values-grid">
-            <div>
-              <p className="eyebrow">What guides us</p>
-              <h2>Make room<br /><em>for possibility.</em></h2>
-            </div>
-            <div className="values-list">
-              <article><span>01</span><h3>Listen first</h3><p>We begin with lived experience, curiosity, and respect for the people closest to an issue.</p></article>
-              <article><span>02</span><h3>Learn together</h3><p>We share tools and ideas openly so every voice can become more confident and capable.</p></article>
-              <article><span>03</span><h3>Act with care</h3><p>We turn good intentions into thoughtful action that lasts beyond a single moment.</p></article>
-            </div>
+        <section className="shell">
+          <div className="flex items-center justify-between gap-4">
+            <Carousel opts={{ align: 'start' }} className="w-full">
+              <CarouselContent>
+                {isLoadingCards
+                  ? Array.from({ length: 3 }).map((_, index) => (
+                      <CarouselItem key={`skeleton-${index}`} className="basis-full md:basis-1/2 lg:basis-1/3">
+                        <div className="p-1">
+                          <Card className="h-full shadow-sm">
+                            <CardContent className="space-y-3">
+                              <Skeleton className="h-48 w-full rounded-xl" />
+                              <Skeleton className="h-6 w-2/3 rounded" />
+                              <Skeleton className="h-4 w-full rounded" />
+                              <Skeleton className="h-4 w-5/6 rounded" />
+                              <Skeleton className="h-5 w-24 rounded" />
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </CarouselItem>
+                    ))
+                  : programs.map((card) => (
+                      <CarouselItem key={card.id} className="basis-full md:basis-1/2 lg:basis-1/3">
+                        <div className="p-1">
+                          <Card className="h-full shadow-sm">
+                            <CardContent className="space-y-3">
+                              <CardImage className="h-full w-full">
+                                <img className="h-full w-full object-cover" src={card.image} alt={card.title} />
+                              </CardImage>
+                              <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
+                              <CardDescription className="text-sm leading-6 text-slate-600">{card.description}</CardDescription>
+                              <Link className="text-link" to={`/project/${card.id}/projectdetailpage`} aria-label={`Learn about ${card.title}`}>
+                                Learn more <span>↗</span>
+                              </Link>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </CarouselItem>
+                    ))}
+              </CarouselContent>
+              <CarouselPrevious />
+              <CarouselNext />
+            </Carousel>
           </div>
         </section>
+
         <Footer />
       </main>
     </div>

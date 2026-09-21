@@ -2,6 +2,8 @@
 export type TownModel = {
   id: string
   town: string
+  description: string
+  address?: string
 }
 
 export type CardModel = {
@@ -47,6 +49,54 @@ export async function fetchTowns(): Promise<TownModel[]> {
   }
 
   return response.json() as Promise<TownModel[]>
+}
+
+export async function fetchGoogleSheetTowns(): Promise<TownModel[]> {
+  const sheetUrl =
+    (import.meta.env.VITE_SHEET_DATA_URL ??
+      import.meta.env.SHEET_DATA_URL ??
+      'https://sheetdb.io/api/v1/olv0rua6l4fak') as string
+
+  const response = await fetch(sheetUrl)
+
+  if (!response.ok) {
+    throw new Error('Unable to load Google Sheet data')
+  }
+
+  const rows = (await response.json()) as Array<Record<string, string | number | undefined>>
+
+  const uniqueTowns = new Map<string, TownModel>()
+
+  for (const [index, row] of rows.entries()) {
+    const townName = String(row.Town ?? row.town ?? row.Name ?? row['Town Name'] ?? '').trim()
+
+    if (!townName) {
+      continue
+    }
+
+    const normalizedTown = townName.toLowerCase().replace(/\s+/g, ' ').trim()
+    if (uniqueTowns.has(normalizedTown)) {
+      continue
+    }
+
+    const description = String(
+      row.Comments ??
+      row.Description ??
+      row.Address ??
+      row['Town Description'] ??
+      row['Details'] ??
+      ''
+    ).trim() || `Explore ${townName} and discover local highlights from the Google Sheet data.`
+
+    uniqueTowns.set(normalizedTown, {
+      id: String(row.id ?? `${townName}-${index}`),
+      town: townName,
+      description,
+      address: String(row.Address ?? row['Address'] ?? '').trim() || undefined,
+    })
+  }
+
+  return Array.from(uniqueTowns.values())
 }
 
 export async function createTown(town: string): Promise<TownModel> {
@@ -208,4 +258,29 @@ export async function updateCard(
   }
 
   return response.json() as Promise<CardModel>
+}
+
+export async function importGoogleSheetCards(sourceUrl: string): Promise<{ importedCount: number; cards: CardModel[] }> {
+  const response = await fetch(`${API_BASE_URL}/api/google-sheet/import`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ sourceUrl }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response
+      .json()
+      .catch(() => null) as {
+        error?: string
+        message?: string
+      } | null
+
+    throw new Error(
+      errorBody?.error ??
+      errorBody?.message ??
+      'Unable to import Google Sheet cards'
+    )
+  }
+
+  return response.json() as Promise<{ importedCount: number; cards: CardModel[] }>
 }
