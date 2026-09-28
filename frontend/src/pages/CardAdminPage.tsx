@@ -2,15 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import {
   createCard,
   fetchCards,
+  fetchTowns,
   updateCard,
   type CardCreateInput,
   type CardModel,
+  type TownModel,
 } from '../services/Api'
-
-type CardAdminPageProps = {
-  onBack: () => void
-  onLogout: () => void
-}
 
 const emptyForm: CardCreateInput = {
   image: '',
@@ -18,6 +15,7 @@ const emptyForm: CardCreateInput = {
   description: '',
   category: 'program',
   status: 'active',
+  townId: '',
 }
 
 function compressImage(file: File): Promise<string> {
@@ -45,11 +43,12 @@ function compressImage(file: File): Promise<string> {
   })
 }
 
-export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) {
+export default function CardAdminPage() {
   const [form, setForm] = useState<CardCreateInput>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [cards, setCards] = useState<CardModel[]>([])
+  const [towns, setTowns] = useState<TownModel[]>([])
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
   const loadCards = async () => {
@@ -62,8 +61,18 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
     }
   }
 
+  const loadTowns = async () => {
+    try {
+      setTowns(await fetchTowns())
+    } catch (error) {
+      setTowns([])
+      console.error(error)
+    }
+  }
+
   useEffect(() => {
     loadCards()
+    loadTowns()
   }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -75,10 +84,11 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
       category: form.category.trim(),
       status: form.status.trim(),
       image: form.image,
+      townId: form.townId,
     }
 
-    if (!payload.title || !payload.description || !payload.category || !payload.status || !payload.image) {
-      setMessage('Please complete every card field.')
+    if (!payload.title || !payload.description || !payload.category || !payload.status || !payload.image || !payload.townId) {
+      setMessage('Please complete every project field and choose a town.')
       return
     }
 
@@ -88,10 +98,10 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
     try {
       if (selectedCardId) {
         await updateCard(selectedCardId, payload)
-        setMessage('Card updated successfully.')
+        setMessage('Project updated successfully.')
       } else {
         await createCard(payload)
-        setMessage('Card created successfully.')
+        setMessage('Project created successfully.')
       }
 
       setForm(emptyForm)
@@ -112,8 +122,9 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
       description: card.description,
       category: card.category,
       status: card.status,
+      townId: card.townId ?? '',
     })
-    setMessage('Editing card: ' + card.title)
+    setMessage('Editing project: ' + card.title)
   }
 
   function handleNewCard() {
@@ -123,22 +134,7 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
   }
 
   return (
-    <section className="admin-page fade-section">
-      <div className="admin-page-top shell">
-        <div>
-          <p className="eyebrow">YouthAct Dashboard</p>
-          <h1>{selectedCardId ? 'Edit card' : 'Create a card'}</h1>
-        </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button className="button button-dark" type="button" onClick={onBack}>
-            Back to home <span>↗</span>
-          </button>
-          <button className="button button-dark" type="button" onClick={onLogout}>
-            Logout <span>↗</span>
-          </button>
-        </div>
-      </div>
-
+    <section className="admin-module fade-section">
       <section className="card-form-section shell">
         <form className="card-form" onSubmit={handleSubmit}>
           <div className="form-grid">
@@ -148,7 +144,7 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
                 type="text"
                 value={form.title}
                 onChange={(event) => setForm({ ...form, title: event.target.value })}
-                placeholder="Card title"
+                placeholder="Project title"
                 required
               />
             </label>
@@ -170,6 +166,20 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
                 <option value="active">active</option>
                 <option value="draft">draft</option>
                 <option value="archived">archived</option>
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Town</span>
+              <select
+                value={form.townId}
+                onChange={(event) => setForm({ ...form, townId: event.target.value })}
+                required
+              >
+                <option value="">Choose a town</option>
+                {towns.map((town) => (
+                  <option key={town.id} value={town.id}>{town.town}</option>
+                ))}
               </select>
             </label>
           </div>
@@ -214,11 +224,11 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
 
           <div className="form-actions">
             <button className="button button-dark" type="submit" disabled={submitting}>
-              {submitting ? 'Saving...' : selectedCardId ? 'Update card' : 'Create card'} <span>↗</span>
+              {submitting ? 'Saving...' : selectedCardId ? 'Update project' : 'Create project'} <span>↗</span>
             </button>
             {selectedCardId && (
               <button className="button button-dark" type="button" onClick={handleNewCard}>
-                Create new card
+                Create new project
               </button>
             )}
             {message && <span className="form-message">{message}</span>}
@@ -228,18 +238,20 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
 
       <section className="card-form-section shell" style={{ marginTop: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ margin: 0 }}>Existing cards</h2>
+          <h2 style={{ margin: 0 }}>Existing projects</h2>
         </div>
 
         <div style={{ display: 'grid', gap: '12px' }}>
           {cards.length === 0 ? (
-            <p>No cards found yet.</p>
+            <p>No projects found yet.</p>
           ) : (
             cards.map((card) => (
               <div key={card.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center', padding: '12px 16px', border: '1px solid #dfe7e5', borderRadius: '12px', background: 'rgba(255,255,255,0.6)' }}>
                 <div>
                   <strong>{card.title}</strong>
-                  <div style={{ fontSize: '0.9rem', color: '#4f5d5a' }}>{card.category} · {card.status}</div>
+                  <div style={{ fontSize: '0.9rem', color: '#4f5d5a' }}>
+                    {card.category} · {card.status} · {towns.find((town) => town.id === card.townId)?.town ?? 'Town not assigned'}
+                  </div>
                 </div>
                 <button className="button button-dark" type="button" onClick={() => handleEdit(card)}>
                   Edit

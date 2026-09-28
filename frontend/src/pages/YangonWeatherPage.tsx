@@ -72,7 +72,6 @@ export default function YangonWeatherPage() {
                 <span className="town-marker" aria-label={`Town marker for ${item.town}`}>●</span>
                 <span className="town-name">{item.town}</span>
                 <span className="town-temp">--</span>
-                <span className="town-condition">Database location</span>
               </div>
             ))}
           </div>
@@ -95,7 +94,6 @@ export default function YangonWeatherPage() {
               <span className="temperature-main">--</span>
               <span className="temperature-unit">°C</span>
             </div>
-            <span className="weather-condition">Database location</span>
           </div>    
 
           <div className="weather-summary">

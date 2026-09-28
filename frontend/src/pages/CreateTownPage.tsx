@@ -1,12 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { createTown, fetchTowns, updateTown, type TownModel } from '../services/Api'
 
-type CreateTownPageProps = {
-  onBack: () => void
-  onLogout: () => void
-}
-
-export default function CreateTownPage({ onBack, onLogout }: CreateTownPageProps) {
+export default function CreateTownPage() {
   const [town, setTown] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -71,22 +66,7 @@ export default function CreateTownPage({ onBack, onLogout }: CreateTownPageProps
   }
 
   return (
-    <section className="admin-page fade-section">
-      <div className="admin-page-top shell">
-        <div>
-          <p className="eyebrow">YouthAct Dashboard</p>
-          <h1>{selectedTownId ? 'Edit town' : 'Create a town'}</h1>
-        </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button className="button button-dark" type="button" onClick={onBack}>
-            Back to home <span>↗</span>
-          </button>
-          <button className="button button-dark" type="button" onClick={onLogout}>
-            Logout <span>↗</span>
-          </button>
-        </div>
-      </div>
-
+    <section className="admin-module fade-section">
       <section className="card-form-section shell">
         <form className="card-form" onSubmit={handleSubmit}>
           <label className="field field-full">

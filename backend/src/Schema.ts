@@ -29,6 +29,11 @@ const cardSchema = new Schema(
       required: [true, 'photo is required'],
       trim: true,
     },
+    townId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Town',
+      required: [true, 'townId is required'],
+    },
   },
   {
     collection: 'cards',

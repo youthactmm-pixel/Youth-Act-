@@ -49,5 +49,14 @@ export async function connectDB() {
     lookup: undefined
   })
 
+  const townIndexes = await mongoose.connection.collection('towns').indexes()
+  const uniqueTownIndex = townIndexes.find(
+    (index) => index.unique && index.key.town === 1 && Object.keys(index.key).length === 1,
+  )
+
+  if (uniqueTownIndex?.name) {
+    await mongoose.connection.collection('towns').dropIndex(uniqueTownIndex.name)
+  }
+
   console.log('MongoDB Atlas connected successfully')
 }

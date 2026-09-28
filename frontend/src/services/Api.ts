@@ -11,6 +11,7 @@ export type CardModel = {
   category: string
   status: string
   image: string
+  townId: string | null
 }
 
 export type CardCreateInput = {
@@ -19,6 +20,7 @@ export type CardCreateInput = {
   description: string
   category: string
   status: string
+  townId: string
 }
 
 const API_BASE_URL = 'https://youth-act-backend.onrender.com'

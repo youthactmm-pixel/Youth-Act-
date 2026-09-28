@@ -31,6 +31,7 @@ function serializeCard(card: any) {
     category: plainCard?.category,
     status: plainCard?.status,
     image: plainCard?.image,
+    townId: plainCard?.townId?.toString?.() ?? null,
   }
 }
 
@@ -152,12 +153,7 @@ app.post('/api/towns', requireAdmin, async (request, response) => {
 
     const newTown = await Town.create({ town: townName })
     response.status(201).json(serializeTown(newTown))
-  } catch (error: any) {
-    if (error?.code === 11000) {
-      response.status(409).json({ message: 'This town already exists' })
-      return
-    }
-
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unable to create town'
     response.status(400).json({ message: 'Unable to create town', error: errorMessage })
   }
@@ -184,12 +180,7 @@ app.put('/api/towns/:id', requireAdmin, async (request, response) => {
     }
 
     response.json(serializeTown(town))
-  } catch (error: any) {
-    if (error?.code === 11000) {
-      response.status(409).json({ message: 'This town already exists' })
-      return
-    }
-
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unable to update town'
     response.status(400).json({ message: 'Unable to update town', error: errorMessage })
   }
@@ -254,12 +245,27 @@ app.get('/api/projects/:id', async (request, response) => {
 
 app.post('/api/cards', requireAdmin, async (request, response) => {
   try {
+    const townId = request.body?.townId
+
+    if (typeof townId !== 'string' || !mongoose.isValidObjectId(townId)) {
+      response.status(400).json({ message: 'A valid town is required' })
+      return
+    }
+
+    const town = await Town.findById(townId).select('_id').lean()
+
+    if (!town) {
+      response.status(404).json({ message: 'Town not found' })
+      return
+    }
+
     const newCard = await Card.create({
       title: request.body.title,
       description: request.body.description,
       category: request.body.category,
       status: request.body.status ?? 'active',
       image: request.body.image,
+      townId: town._id,
     })
 
     response.status(201).json(serializeCard(newCard))
@@ -271,12 +277,27 @@ app.post('/api/cards', requireAdmin, async (request, response) => {
 
 app.put('/api/cards/:id', requireAdmin, async (request, response) => {
   try {
+    const townId = request.body?.townId
+
+    if (typeof townId !== 'string' || !mongoose.isValidObjectId(townId)) {
+      response.status(400).json({ message: 'A valid town is required' })
+      return
+    }
+
+    const town = await Town.findById(townId).select('_id').lean()
+
+    if (!town) {
+      response.status(404).json({ message: 'Town not found' })
+      return
+    }
+
     const payload = {
       title: request.body.title,
       description: request.body.description,
       category: request.body.category,
       status: request.body.status ?? 'active',
       image: request.body.image,
+      townId: town._id,
     }
 
     const card = await Card.findByIdAndUpdate(request.params.id, payload, {

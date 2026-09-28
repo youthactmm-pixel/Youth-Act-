@@ -18,6 +18,7 @@ import StoriesPage from './pages/StoriesPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import CreateTownPage from './pages/CreateTownPage';
 import AdminLoginPage from './pages/AdminLoginPage';
+import { AdminDashboard, AdminOverview } from './pages/AdminDashboard';
 import { isAdminAuthenticated, clearAdminToken } from './services/auth';
 
 class ErrorBoundary extends Component<
@@ -120,26 +121,7 @@ function AdminRoute() {
   }
 
   return (
-    <CardAdminPage
-      onBack={() => navigate('/')}
-      onLogout={() => {
-        clearAdminToken();
-        navigate('/admin/login');
-      }}
-    />
-  );
-}
-
-function CreateTownRoute() {
-  const navigate = useNavigate();
-
-  if (!isAdminAuthenticated()) {
-    return <Navigate to="/admin/login" replace />;
-  }
-
-  return (
-    <CreateTownPage
-      onBack={() => navigate('/admin')}
+    <AdminDashboard
       onLogout={() => {
         clearAdminToken();
         navigate('/admin/login');
@@ -178,20 +160,19 @@ function App() {
             element={<ProjectDetailPage />}
           />
 
-          <Route
-            path="/admin"
-            element={<AdminRoute />}
-          />
+          <Route path="/admin" element={<AdminRoute />}>
+            <Route index element={<AdminOverview />} />
+            <Route path="projects" element={<CardAdminPage />} />
+            <Route path="cards" element={<Navigate to="/admin/projects" replace />} />
+            <Route path="towns" element={<CreateTownPage />} />
+          </Route>
 
           <Route
             path="/admin/login"
             element={<AdminLoginRoute />}
           />
 
-          <Route
-            path="/create-town"
-            element={<CreateTownRoute />}
-          />
+          <Route path="/create-town" element={<Navigate to="/admin/towns" replace />} />
 
           <Route
             path="/yangon-weather"
