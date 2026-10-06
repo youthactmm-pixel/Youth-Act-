@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import TopNavbar from '@/components/ui/topnavbar'
-import { fetchCards } from '@/services/Api'
-import { CardModel } from '@/types/card'
+import { fetchCards, type CardModel } from '@/services/Api'
 import Footer from '@/components/ui/footer'
 
 const fallbackPrograms: CardModel[] = [

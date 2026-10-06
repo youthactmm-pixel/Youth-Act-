@@ -1,7 +1,7 @@
 import { ErrorInfo, ReactNode } from 'react';
 import './App.css';
 import {
-  BrowserRouter,
+  HashRouter,
   Routes,
   Route,
   Navigate,
@@ -166,7 +166,7 @@ function AdminLoginRoute() {
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
@@ -198,7 +198,7 @@ function App() {
             element={<YangonWeatherPage />}
           />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </ErrorBoundary>
   );
 }
