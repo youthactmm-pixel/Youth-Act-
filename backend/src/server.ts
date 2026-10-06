@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Card, Town, User, GoogleSheetImport } from './Schema'
+import { Card, User, GoogleSheetImport, Town } from './Schema'
 import { connectDB } from './connectDB'
 import mongoose from 'mongoose'
 

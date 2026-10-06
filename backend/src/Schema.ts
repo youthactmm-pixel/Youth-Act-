@@ -88,8 +88,24 @@ const googleSheetImportSchema = new Schema(
   },
 )
 
+const townSchema = new Schema(
+  {
+    town: {
+      type: String,
+      required: [true, 'town is required'],
+      unique: true,
+      trim: true,
+    },
+  },
+  {
+    collection: 'towns',
+    timestamps: true,
+  },
+)
+
 const Card = mongoose.model('Card', cardSchema)
 const User = mongoose.model('User', userSchema)
 const GoogleSheetImport = mongoose.model('GoogleSheetImport', googleSheetImportSchema)
+const Town = mongoose.model('Town', townSchema)
 
-export { Card, User, GoogleSheetImport }
+export { Card, User, GoogleSheetImport, Town }
