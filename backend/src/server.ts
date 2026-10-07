@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
 import bcrypt from 'bcrypt'
@@ -227,6 +228,116 @@ app.post('/createCard', async (_request, response) => {
 
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: 'youthact-api' })
+})
+
+app.get('/api/weather', async (request, response) => {
+  const latitudeValue = typeof request.query.lat === 'string' ? request.query.lat.trim() : ''
+  const longitudeValue = typeof request.query.lon === 'string' ? request.query.lon.trim() : ''
+  const latitude = Number(latitudeValue)
+  const longitude = Number(longitudeValue)
+  const apiKey = process.env.OPENWEATHER_API_KEY?.trim()
+
+  if (!latitudeValue || !longitudeValue ||
+      !Number.isFinite(latitude) || Math.abs(latitude) > 90 ||
+      !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+    response.status(400).json({ message: 'Valid latitude and longitude are required.' })
+    return
+  }
+
+  if (!apiKey) {
+    response.status(503).json({ message: 'Weather service is not configured. Set OPENWEATHER_API_KEY on the backend.' })
+    return
+  }
+
+  const params = new URLSearchParams({
+    lat: String(latitude),
+    lon: String(longitude),
+    appid: apiKey,
+    units: 'metric',
+  })
+  const baseUrl = 'https://api.openweathermap.org/data/2.5'
+
+  try {
+    const [currentResponse, forecastResponse] = await Promise.all([
+      fetch(`${baseUrl}/weather?${params}`, { signal: AbortSignal.timeout(10000) }),
+      fetch(`${baseUrl}/forecast?${params}`, { signal: AbortSignal.timeout(10000) }),
+    ])
+
+    if (!currentResponse.ok || !forecastResponse.ok) {
+      const failedResponse = !currentResponse.ok ? currentResponse : forecastResponse
+      console.error(`OpenWeather returned HTTP ${failedResponse.status}.`)
+      response.status(502).json({ message: 'OpenWeather could not load conditions for this location.' })
+      return
+    }
+
+    const currentData = await currentResponse.json() as {
+      dt: number
+      main: { temp: number; feels_like: number; humidity: number }
+      weather: Array<{ description: string; icon: string }>
+      wind: { speed: number }
+      rain?: { '1h'?: number; '3h'?: number }
+    }
+    const forecastData = await forecastResponse.json() as {
+      city: { timezone: number }
+      list: Array<{
+        dt: number
+        main: { temp_min: number; temp_max: number }
+        weather: Array<{ description: string; icon: string }>
+        pop: number
+      }>
+    }
+
+    if (!currentData.main || !currentData.weather?.length || !forecastData.list?.length) {
+      console.error('OpenWeather returned incomplete weather data.')
+      response.status(502).json({ message: 'OpenWeather returned incomplete weather data.' })
+      return
+    }
+
+    const forecastsByDate = new Map<string, typeof forecastData.list>()
+    for (const forecast of forecastData.list) {
+      const date = new Date((forecast.dt + forecastData.city.timezone) * 1000).toISOString().slice(0, 10)
+      const forecasts = forecastsByDate.get(date) ?? []
+      forecasts.push(forecast)
+      forecastsByDate.set(date, forecasts)
+    }
+
+    const daily = Array.from(forecastsByDate.entries()).slice(0, 3).map(([date, forecasts]) => {
+      const minTemperature = Math.min(...forecasts.map((forecast) => forecast.main.temp_min))
+      const maxTemperature = Math.max(...forecasts.map((forecast) => forecast.main.temp_max))
+      const precipitationProbability = Math.round(Math.max(...forecasts.map((forecast) => forecast.pop)) * 100)
+      const representativeForecast = forecasts.reduce((closest, forecast) => {
+        const localHour = new Date((forecast.dt + forecastData.city.timezone) * 1000).getUTCHours()
+        const closestHour = new Date((closest.dt + forecastData.city.timezone) * 1000).getUTCHours()
+        return Math.abs(localHour - 12) < Math.abs(closestHour - 12) ? forecast : closest
+      })
+
+      return {
+        date,
+        description: representativeForecast.weather[0]?.description ?? 'Unknown',
+        icon: representativeForecast.weather[0]?.icon ?? '',
+        maxTemperature,
+        minTemperature,
+        precipitationProbability,
+      }
+    })
+
+    response.json({
+      current: {
+        time: new Date(currentData.dt * 1000).toISOString(),
+        temperature: currentData.main.temp,
+        feelsLike: currentData.main.feels_like,
+        humidity: currentData.main.humidity,
+        precipitation: currentData.rain?.['1h'] ?? currentData.rain?.['3h'] ?? 0,
+        description: currentData.weather[0]?.description ?? 'Unknown',
+        icon: currentData.weather[0]?.icon ?? '',
+        windSpeed: currentData.wind.speed,
+      },
+      daily,
+    })
+  } catch {
+    console.error('Unable to reach the OpenWeather service.')
+    response.status(502).json({ message: 'Unable to reach OpenWeather. Please try again.' })
+  }
 })
 
 app.get('/api/towns', async (_request, response) => {
@@ -486,4 +597,3 @@ async function startServer() {
 }
 
 startServer()
-

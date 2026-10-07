@@ -23,6 +23,27 @@ export type CardCreateInput = {
   status: string
 }
 
+export type WeatherStatusResponse = {
+  current: {
+    time: string
+    temperature: number
+    feelsLike: number
+    humidity: number
+    precipitation: number
+    description: string
+    icon: string
+    windSpeed: number
+  }
+  daily: Array<{
+    date: string
+    description: string
+    icon: string
+    maxTemperature: number
+    minTemperature: number
+    precipitationProbability: number
+  }>
+}
+
 const API_BASE_URL = 'https://youth-act-backend.onrender.com'
 
 function getAuthHeaders(): Record<string, string> {
@@ -40,6 +61,30 @@ function jsonHeaders(): Record<string, string> {
 // =========================
 // Town API
 // =========================
+
+export async function fetchWeatherStatus(
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal
+): Promise<WeatherStatusResponse> {
+  const weatherApiBaseUrl = import.meta.env.DEV ? '' : API_BASE_URL
+  const params = new URLSearchParams({
+    lat: String(latitude),
+    lon: String(longitude),
+  })
+  const response = await fetch(`${weatherApiBaseUrl}/api/weather?${params}`, { signal })
+  const data = await response.json().catch(() => null) as { message?: string } | null
+
+  if (!response.ok) {
+    throw new Error(data?.message ?? 'Unable to load weather conditions.')
+  }
+
+  if (!data) {
+    throw new Error('The weather service returned an invalid response.')
+  }
+
+  return data as WeatherStatusResponse
+}
 
 export async function fetchTowns(): Promise<TownModel[]> {
   const response = await fetch(`${API_BASE_URL}/api/towns`)

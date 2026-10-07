@@ -11,6 +11,7 @@ import { Component } from 'react';
 
 import { HomePage } from './pages/mainpage';
 import YangonWeatherPage from './pages/YangonWeatherPage';
+import WeatherStatusPage from './pages/WeatherStatusPage';
 import CardAdminPage from './pages/CardAdminPage';
 import AboutPage from './pages/AboutPage';
 import ProgramsPage from './pages/ProgramsPage';
@@ -196,6 +197,10 @@ function App() {
           <Route
             path="/yangon-weather"
             element={<YangonWeatherPage />}
+          />
+          <Route
+            path="/weather-status"
+            element={<WeatherStatusPage />}
           />
         </Routes>
       </HashRouter>

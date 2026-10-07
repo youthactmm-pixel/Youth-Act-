@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import { divIcon, type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
 import { ArrowRight, CloudSun, LocateFixed, MapPin, Search, X } from 'lucide-react'
@@ -48,13 +48,13 @@ function MapClickHandler({ onSelect }: { onSelect: (point: [number, number]) => 
 }
 
 export default function YangonWeatherPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [towns, setTowns] = useState<TownModel[]>([])
   const [selectedTown, setSelectedTown] = useState<TownModel | null>(null)
   const [position, setPosition] = useState<LatLngExpression>(YANGON)
   const [locationLabel, setLocationLabel] = useState('Yangon, Myanmar')
   const [search, setSearch] = useState('')
-  const [isLoadingTowns, setIsLoadingTowns] = useState(true)
   const [isLocating, setIsLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
 
@@ -76,8 +76,6 @@ export default function YangonWeatherPage() {
         } catch {
           setTowns([])
         }
-      } finally {
-        setIsLoadingTowns(false)
       }
     }
 
@@ -92,7 +90,7 @@ export default function YangonWeatherPage() {
     if (searchParams.has('lat') && searchParams.has('lon') && Number.isFinite(latitude) && Number.isFinite(longitude)) {
       setPosition([latitude, longitude])
       setSelectedTown(null)
-      setLocationLabel('Pinned location')
+      setLocationLabel(searchParams.get('label') || 'Pinned location')
       return
     }
 
@@ -100,9 +98,11 @@ export default function YangonWeatherPage() {
     const town = towns.find((item) => item.town.trim().toLowerCase() === requestedTown) ?? towns[0]
     setSelectedTown(town)
     setLocationLabel(`${town.town}, Myanmar`)
+    setIsLocating(true)
     void findTownCoordinates(town.town)
       .then(setPosition)
       .catch(() => setLocationError(`Could not place ${town.town} on the map.`))
+      .finally(() => setIsLocating(false))
   }, [towns, searchParams])
 
   const matchingTowns = useMemo(() => {
@@ -187,16 +187,14 @@ export default function YangonWeatherPage() {
   }
 
   const confirmLocation = () => {
-    if (selectedTown) {
-      setSearchParams({ town: selectedTown.town })
-      return
-    }
-
     const [latitude, longitude] = position as [number, number]
-    setSearchParams({ lat: latitude.toFixed(5), lon: longitude.toFixed(5) })
+    const params = new URLSearchParams({
+      lat: latitude.toFixed(5),
+      lon: longitude.toFixed(5),
+      label: locationLabel,
+    })
+    navigate(`/weather-status?${params.toString()}`)
   }
-
-  const markerPosition = position as [number, number]
 
   return (
     <main className="weather-picker">
@@ -270,7 +268,7 @@ export default function YangonWeatherPage() {
             {locationError && <span className="weather-location-error">{locationError}</span>}
           </span>
         </div>
-        <button type="button" className="weather-confirm-button" onClick={confirmLocation}>
+        <button type="button" className="weather-confirm-button" onClick={confirmLocation} disabled={isLocating || Boolean(locationError)}>
           Confirm location
           <ArrowRight size={18} aria-hidden="true" />
         </button>
