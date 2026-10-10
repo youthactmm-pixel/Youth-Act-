@@ -1,4 +1,5 @@
 import { ErrorInfo, ReactNode } from 'react';
+import { useSyncExternalStore } from 'react';
 import './App.css';
 import {
   HashRouter,
@@ -20,6 +21,38 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import CreateTownPage from './pages/CreateTownPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import { isAdminAuthenticated, clearAdminToken } from './services/auth';
+import {
+  getBackendLoadingSnapshot,
+  subscribeToBackendLoading,
+} from './services/backendLoading';
+
+function BackendLoadingPopup() {
+  const isLoading = useSyncExternalStore(
+    subscribeToBackendLoading,
+    getBackendLoadingSnapshot,
+    () => false
+  );
+
+  if (!isLoading) {
+    return null;
+  }
+
+  return (
+    <div className="backend-loading-backdrop" role="status" aria-live="polite">
+      <div className="backend-loading-popup">
+        <span className="backend-loading-spinner" aria-hidden="true" />
+        <p>
+          Fetching data
+          <span className="backend-loading-dots" aria-hidden="true">
+            <span>.</span>
+            <span>.</span>
+            <span>.</span>
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -167,43 +200,46 @@ function AdminLoginRoute() {
 function App() {
   return (
     <ErrorBoundary>
-      <HashRouter>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/programs" element={<ProgramsPage />} />
-          <Route path="/stories" element={<StoriesPage />} />
+      <>
+        <BackendLoadingPopup />
+        <HashRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/programs" element={<ProgramsPage />} />
+            <Route path="/stories" element={<StoriesPage />} />
 
-          <Route
-            path="/project/:id/projectdetailpage"
-            element={<ProjectDetailPage />}
-          />
+            <Route
+              path="/project/:id/projectdetailpage"
+              element={<ProjectDetailPage />}
+            />
 
-          <Route
-            path="/admin"
-            element={<AdminRoute />}
-          />
+            <Route
+              path="/admin"
+              element={<AdminRoute />}
+            />
 
-          <Route
-            path="/admin/login"
-            element={<AdminLoginRoute />}
-          />
+            <Route
+              path="/admin/login"
+              element={<AdminLoginRoute />}
+            />
 
-          <Route
-            path="/create-town"
-            element={<CreateTownRoute />}
-          />
+            <Route
+              path="/create-town"
+              element={<CreateTownRoute />}
+            />
 
-          <Route
-            path="/yangon-weather"
-            element={<YangonWeatherPage />}
-          />
-          <Route
-            path="/weather-status"
-            element={<WeatherStatusPage />}
-          />
-        </Routes>
-      </HashRouter>
+            <Route
+              path="/yangon-weather"
+              element={<YangonWeatherPage />}
+            />
+            <Route
+              path="/weather-status"
+              element={<WeatherStatusPage />}
+            />
+          </Routes>
+        </HashRouter>
+      </>
     </ErrorBoundary>
   );
 }

@@ -1,4 +1,6 @@
 
+import { withBackendLoading } from './backendLoading'
+
 export type TownModel = {
   id: string
   town: string
@@ -67,131 +69,141 @@ export async function fetchWeatherStatus(
   longitude: number,
   signal?: AbortSignal
 ): Promise<WeatherStatusResponse> {
-  const weatherApiBaseUrl = import.meta.env.DEV ? '' : API_BASE_URL
-  const params = new URLSearchParams({
-    lat: String(latitude),
-    lon: String(longitude),
+  return withBackendLoading(async () => {
+    const weatherApiBaseUrl = import.meta.env.DEV ? '' : API_BASE_URL
+    const params = new URLSearchParams({
+      lat: String(latitude),
+      lon: String(longitude),
+    })
+    const response = await fetch(`${weatherApiBaseUrl}/api/weather?${params}`, { signal })
+    const data = await response.json().catch(() => null) as { message?: string } | null
+
+    if (!response.ok) {
+      throw new Error(data?.message ?? 'Unable to load weather conditions.')
+    }
+
+    if (!data) {
+      throw new Error('The weather service returned an invalid response.')
+    }
+
+    return data as WeatherStatusResponse
   })
-  const response = await fetch(`${weatherApiBaseUrl}/api/weather?${params}`, { signal })
-  const data = await response.json().catch(() => null) as { message?: string } | null
-
-  if (!response.ok) {
-    throw new Error(data?.message ?? 'Unable to load weather conditions.')
-  }
-
-  if (!data) {
-    throw new Error('The weather service returned an invalid response.')
-  }
-
-  return data as WeatherStatusResponse
 }
 
 export async function fetchTowns(): Promise<TownModel[]> {
-  const response = await fetch(`${API_BASE_URL}/api/towns`)
+  return withBackendLoading(async () => {
+    const response = await fetch(`${API_BASE_URL}/api/towns`)
 
-  if (!response.ok) {
-    throw new Error('Unable to load towns')
-  }
+    if (!response.ok) {
+      throw new Error('Unable to load towns')
+    }
 
-  return response.json() as Promise<TownModel[]>
+    return response.json() as Promise<TownModel[]>
+  })
 }
 
 export async function fetchGoogleSheetTowns(): Promise<TownModel[]> {
-  const sheetUrl =
-    (import.meta.env.VITE_SHEET_DATA_URL ??
-      import.meta.env.SHEET_DATA_URL ??
-      'https://sheetdb.io/api/v1/olv0rua6l4fak') as string
+  return withBackendLoading(async () => {
+    const sheetUrl =
+      (import.meta.env.VITE_SHEET_DATA_URL ??
+        import.meta.env.SHEET_DATA_URL ??
+        'https://sheetdb.io/api/v1/olv0rua6l4fak') as string
 
-  const response = await fetch(sheetUrl)
+    const response = await fetch(sheetUrl)
 
-  if (!response.ok) {
-    throw new Error('Unable to load Google Sheet data')
-  }
-
-  const rows = (await response.json()) as Array<Record<string, string | number | undefined>>
-
-  const uniqueTowns = new Map<string, TownModel>()
-
-  for (const [index, row] of rows.entries()) {
-    const townName = String(row.Town ?? row.town ?? row.Name ?? row['Town Name'] ?? '').trim()
-
-    if (!townName) {
-      continue
+    if (!response.ok) {
+      throw new Error('Unable to load Google Sheet data')
     }
 
-    const normalizedTown = townName.toLowerCase().replace(/\s+/g, ' ').trim()
-    if (uniqueTowns.has(normalizedTown)) {
-      continue
+    const rows = (await response.json()) as Array<Record<string, string | number | undefined>>
+
+    const uniqueTowns = new Map<string, TownModel>()
+
+    for (const [index, row] of rows.entries()) {
+      const townName = String(row.Town ?? row.town ?? row.Name ?? row['Town Name'] ?? '').trim()
+
+      if (!townName) {
+        continue
+      }
+
+      const normalizedTown = townName.toLowerCase().replace(/\s+/g, ' ').trim()
+      if (uniqueTowns.has(normalizedTown)) {
+        continue
+      }
+
+      const description = String(
+        row.Comments ??
+        row.Description ??
+        row.Address ??
+        row['Town Description'] ??
+        row['Details'] ??
+        ''
+      ).trim() || `Explore ${townName} and discover local highlights from the Google Sheet data.`
+
+      uniqueTowns.set(normalizedTown, {
+        id: String(row.id ?? `${townName}-${index}`),
+        town: townName,
+        description,
+        address: String(row.Address ?? row['Address'] ?? '').trim() || undefined,
+      })
     }
 
-    const description = String(
-      row.Comments ??
-      row.Description ??
-      row.Address ??
-      row['Town Description'] ??
-      row['Details'] ??
-      ''
-    ).trim() || `Explore ${townName} and discover local highlights from the Google Sheet data.`
-
-    uniqueTowns.set(normalizedTown, {
-      id: String(row.id ?? `${townName}-${index}`),
-      town: townName,
-      description,
-      address: String(row.Address ?? row['Address'] ?? '').trim() || undefined,
-    })
-  }
-
-  return Array.from(uniqueTowns.values())
+    return Array.from(uniqueTowns.values())
+  })
 }
 
 export async function createTown(town: string): Promise<TownModel> {
-  const response = await fetch(`${API_BASE_URL}/api/towns`, {
-    method: 'POST',
-    headers: jsonHeaders(),
-    body: JSON.stringify({ town }),
+  return withBackendLoading(async () => {
+    const response = await fetch(`${API_BASE_URL}/api/towns`, {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ town }),
+    })
+
+    if (!response.ok) {
+      const errorBody = await response
+        .json()
+        .catch(() => null) as {
+          message?: string
+          error?: string
+        } | null
+
+      throw new Error(
+        errorBody?.message ??
+        errorBody?.error ??
+        'Unable to create town'
+      )
+    }
+
+    return response.json() as Promise<TownModel>
   })
-
-  if (!response.ok) {
-    const errorBody = await response
-      .json()
-      .catch(() => null) as {
-        message?: string
-        error?: string
-      } | null
-
-    throw new Error(
-      errorBody?.message ??
-      errorBody?.error ??
-      'Unable to create town'
-    )
-  }
-
-  return response.json() as Promise<TownModel>
 }
 
 export async function updateTown(townId: string, town: string): Promise<TownModel> {
-  const response = await fetch(`${API_BASE_URL}/api/towns/${townId}`, {
-    method: 'PUT',
-    headers: jsonHeaders(),
-    body: JSON.stringify({ town }),
+  return withBackendLoading(async () => {
+    const response = await fetch(`${API_BASE_URL}/api/towns/${townId}`, {
+      method: 'PUT',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ town }),
+    })
+
+    if (!response.ok) {
+      const errorBody = await response
+        .json()
+        .catch(() => null) as {
+          message?: string
+          error?: string
+        } | null
+
+      throw new Error(
+        errorBody?.message ??
+        errorBody?.error ??
+        'Unable to update town'
+      )
+    }
+
+    return response.json() as Promise<TownModel>
   })
-
-  if (!response.ok) {
-    const errorBody = await response
-      .json()
-      .catch(() => null) as {
-        message?: string
-        error?: string
-      } | null
-
-    throw new Error(
-      errorBody?.message ??
-      errorBody?.error ??
-      'Unable to update town'
-    )
-  }
-
-  return response.json() as Promise<TownModel>
 }
 
 // =========================
@@ -199,133 +211,145 @@ export async function updateTown(townId: string, town: string): Promise<TownMode
 // =========================
 
 export async function fetchCards(): Promise<CardModel[]> {
-  const response = await fetch(`${API_BASE_URL}/api/cards`)
+  return withBackendLoading(async () => {
+    const response = await fetch(`${API_BASE_URL}/api/cards`)
 
-  if (!response.ok) {
-    throw new Error('Unable to load cards')
-  }
+    if (!response.ok) {
+      throw new Error('Unable to load cards')
+    }
 
-  return response.json() as Promise<CardModel[]>
+    return response.json() as Promise<CardModel[]>
+  })
 }
 
 export async function fetchCardById(
   cardId: string
 ): Promise<CardModel | null> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/cards/${cardId}`
-  )
+  return withBackendLoading(async () => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/cards/${cardId}`
+    )
 
-  if (response.status === 404) {
-    return null
-  }
+    if (response.status === 404) {
+      return null
+    }
 
-  if (!response.ok) {
-    throw new Error('Unable to load card')
-  }
+    if (!response.ok) {
+      throw new Error('Unable to load card')
+    }
 
-  return response.json() as Promise<CardModel>
+    return response.json() as Promise<CardModel>
+  })
 }
 
 export async function fetchProjectById(
   projectId: string
 ): Promise<CardModel | null> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/projects/${projectId}`
-  )
+  return withBackendLoading(async () => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/projects/${projectId}`
+    )
 
-  if (response.status === 404) {
-    return null
-  }
+    if (response.status === 404) {
+      return null
+    }
 
-  if (!response.ok) {
-    throw new Error('Unable to load project')
-  }
+    if (!response.ok) {
+      throw new Error('Unable to load project')
+    }
 
-  return response.json() as Promise<CardModel>
+    return response.json() as Promise<CardModel>
+  })
 }
 
 export async function createCard(
   card: CardCreateInput
 ): Promise<CardModel> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/cards`,
-    {
-      method: 'POST',
-      headers: jsonHeaders(),
-      body: JSON.stringify(card),
-    }
-  )
-
-  if (!response.ok) {
-    const errorBody = await response
-      .json()
-      .catch(() => null) as {
-        error?: string
-        message?: string
-      } | null
-
-    throw new Error(
-      errorBody?.error ??
-      errorBody?.message ??
-      'Unable to create card'
+  return withBackendLoading(async () => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/cards`,
+      {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify(card),
+      }
     )
-  }
 
-  return response.json() as Promise<CardModel>
+    if (!response.ok) {
+      const errorBody = await response
+        .json()
+        .catch(() => null) as {
+          error?: string
+          message?: string
+        } | null
+
+      throw new Error(
+        errorBody?.error ??
+        errorBody?.message ??
+        'Unable to create card'
+      )
+    }
+
+    return response.json() as Promise<CardModel>
+  })
 }
 
 export async function updateCard(
   cardId: string,
   card: CardCreateInput
 ): Promise<CardModel> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/cards/${cardId}`,
-    {
-      method: 'PUT',
-      headers: jsonHeaders(),
-      body: JSON.stringify(card),
-    }
-  )
-
-  if (!response.ok) {
-    const errorBody = await response
-      .json()
-      .catch(() => null) as {
-        error?: string
-        message?: string
-      } | null
-
-    throw new Error(
-      errorBody?.error ??
-      errorBody?.message ??
-      'Unable to update card'
+  return withBackendLoading(async () => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/cards/${cardId}`,
+      {
+        method: 'PUT',
+        headers: jsonHeaders(),
+        body: JSON.stringify(card),
+      }
     )
-  }
 
-  return response.json() as Promise<CardModel>
+    if (!response.ok) {
+      const errorBody = await response
+        .json()
+        .catch(() => null) as {
+          error?: string
+          message?: string
+        } | null
+
+      throw new Error(
+        errorBody?.error ??
+        errorBody?.message ??
+        'Unable to update card'
+      )
+    }
+
+    return response.json() as Promise<CardModel>
+  })
 }
 
 export async function importGoogleSheetCards(sourceUrl: string): Promise<{ importedCount: number; cards: CardModel[] }> {
-  const response = await fetch(`${API_BASE_URL}/api/google-sheet/import`, {
-    method: 'POST',
-    headers: jsonHeaders(),
-    body: JSON.stringify({ sourceUrl }),
+  return withBackendLoading(async () => {
+    const response = await fetch(`${API_BASE_URL}/api/google-sheet/import`, {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ sourceUrl }),
+    })
+
+    if (!response.ok) {
+      const errorBody = await response
+        .json()
+        .catch(() => null) as {
+          error?: string
+          message?: string
+        } | null
+
+      throw new Error(
+        errorBody?.error ??
+        errorBody?.message ??
+        'Unable to import Google Sheet cards'
+      )
+    }
+
+    return response.json() as Promise<{ importedCount: number; cards: CardModel[] }>
   })
-
-  if (!response.ok) {
-    const errorBody = await response
-      .json()
-      .catch(() => null) as {
-        error?: string
-        message?: string
-      } | null
-
-    throw new Error(
-      errorBody?.error ??
-      errorBody?.message ??
-      'Unable to import Google Sheet cards'
-    )
-  }
-
-  return response.json() as Promise<{ importedCount: number; cards: CardModel[] }>
 }
