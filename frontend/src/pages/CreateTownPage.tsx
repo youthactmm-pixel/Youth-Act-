@@ -77,9 +77,9 @@ export default function CreateTownPage({ onBack, onLogout }: CreateTownPageProps
           <p className="eyebrow">YouthAct Dashboard</p>
           <h1>{selectedTownId ? 'Edit town' : 'Create a town'}</h1>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div className="admin-page-top-actions">
           <button className="button button-dark" type="button" onClick={onBack}>
-            Back to home <span>↗</span>
+            Back to dashboard <span>↗</span>
           </button>
           <button className="button button-dark" type="button" onClick={onLogout}>
             Logout <span>↗</span>

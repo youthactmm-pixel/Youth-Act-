@@ -94,6 +94,7 @@
           </div>
           <Link to="/programs">Programs</Link>
           <Link to="/stories">Stories</Link>
+          <Link to="/community-map">Community map</Link>
           <Combobox items={towns} value={selectedTown} onValueChange={handleTownChange}>
             <ComboboxInput placeholder="Select an Area" />
             <ComboboxContent>

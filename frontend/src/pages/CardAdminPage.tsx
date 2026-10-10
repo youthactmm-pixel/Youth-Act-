@@ -6,19 +6,39 @@ import {
   type CardCreateInput,
   type CardModel,
 } from '../services/Api'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardImage,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 
 type CardAdminPageProps = {
   onBack: () => void
   onLogout: () => void
+  onReviewReports: () => void
+  initialCardId?: string
 }
 
 const emptyForm: CardCreateInput = {
   image: '',
+  images: [],
   title: '',
   description: '',
   category: 'program',
   status: 'active',
 }
+
+const CARDS_PER_PAGE = 6
 
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -45,17 +65,24 @@ function compressImage(file: File): Promise<string> {
   })
 }
 
-export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) {
+export default function CardAdminPage({ onBack, onLogout, onReviewReports, initialCardId }: CardAdminPageProps) {
   const [form, setForm] = useState<CardCreateInput>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [cards, setCards] = useState<CardModel[]>([])
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [processingImages, setProcessingImages] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const loadCards = async () => {
     try {
       const nextCards = await fetchCards()
       setCards(nextCards)
+      setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(nextCards.length / CARDS_PER_PAGE))))
+      if (initialCardId) {
+        const cardToEdit = nextCards.find((card) => card.id === initialCardId)
+        if (cardToEdit) handleEdit(cardToEdit)
+      }
     } catch (error) {
       setCards([])
       console.error(error)
@@ -64,7 +91,7 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
 
   useEffect(() => {
     loadCards()
-  }, [])
+  }, [initialCardId])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -74,11 +101,17 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
       description: form.description.trim(),
       category: form.category.trim(),
       status: form.status.trim(),
-      image: form.image,
+      image: form.images?.[0] ?? form.image,
+      images: form.images?.length ? form.images : [form.image],
     }
 
-    if (!payload.title || !payload.description || !payload.category || !payload.status || !payload.image) {
-      setMessage('Please complete every card field.')
+    if (!payload.title || !payload.description || !payload.category || !payload.status || !payload.images[0]) {
+      setMessage('Please complete every card field and attach at least one image.')
+      return
+    }
+
+    if (processingImages) {
+      setMessage('Wait for selected images to finish processing.')
       return
     }
 
@@ -108,6 +141,7 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
     setSelectedCardId(card.id)
     setForm({
       image: card.image,
+      images: card.images?.length ? card.images : [card.image],
       title: card.title,
       description: card.description,
       category: card.category,
@@ -122,6 +156,9 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
     setMessage('')
   }
 
+  const pageCount = Math.max(1, Math.ceil(cards.length / CARDS_PER_PAGE))
+  const visibleCards = cards.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
+
   return (
     <section className="admin-page fade-section">
       <div className="admin-page-top shell">
@@ -129,9 +166,12 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
           <p className="eyebrow">YouthAct Dashboard</p>
           <h1>{selectedCardId ? 'Edit card' : 'Create a card'}</h1>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div className="admin-page-top-actions">
+          <button className="button button-dark" type="button" onClick={onReviewReports}>
+            Review reports
+          </button>
           <button className="button button-dark" type="button" onClick={onBack}>
-            Back to home <span>↗</span>
+            Back to dashboard <span>↗</span>
           </button>
           <button className="button button-dark" type="button" onClick={onLogout}>
             Logout <span>↗</span>
@@ -185,36 +225,73 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
           </label>
 
           <label className="field field-full">
-            <span>Add Image</span>
-            <input type="file"
-              accept='image/*'
-              onChange={(event) => {
-                const file = event.target.files?.[0]
+            <span>Add Images (up to 8)</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={async (event) => {
+                const files = Array.from(event.target.files ?? [])
+                event.target.value = ''
+                if (files.length === 0) return
 
-                if (!file) {
-                  setForm({ ...form, image: '' })
+                const currentImages = form.images?.length ? form.images : form.image ? [form.image] : []
+                if (currentImages.length + files.length > 8) {
+                  setMessage('A card can have up to 8 images. Remove an image before adding more.')
+                  return
+                }
+                if (files.some((file) => file.size > 15 * 1024 * 1024)) {
+                  setMessage('Each image must be smaller than 15 MB.')
                   return
                 }
 
-                if (file.size > 15 * 1024 * 1024) {
-                  setForm({ ...form, image: '' })
-                  setMessage('Please choose an image smaller than 15 MB.')
-                  event.target.value = ''
-                  return
-                }
-
+                setProcessingImages(true)
                 setMessage('')
-                compressImage(file)
-                  .then((image) => setForm({ ...form, image }))
-                  .catch((error) => setMessage(error instanceof Error ? error.message : 'Unable to process the selected image.'))
+                try {
+                  const newImages = await Promise.all(files.map(compressImage))
+                  const allImages = [...currentImages, ...newImages]
+                  if (allImages.reduce((total, image) => total + image.length, 0) > 8 * 1024 * 1024) {
+                    throw new Error('The combined images are too large. Choose fewer or smaller images.')
+                  }
+                  setForm((current) => ({
+                    ...current,
+                    image: allImages[0],
+                    images: allImages,
+                  }))
+                } catch (error) {
+                  setMessage(error instanceof Error ? error.message : 'Unable to process the selected images.')
+                } finally {
+                  setProcessingImages(false)
+                }
               }}
-              placeholder="Add Image"
             />
+            <span className="card-image-help">
+              {processingImages ? 'Processing selected images…' : `${form.images?.length ?? (form.image ? 1 : 0)} of 8 attached`}
+            </span>
+            {!!form.images?.length && (
+              <div className="card-image-preview-list">
+                {form.images.map((image, index) => (
+                  <div className="card-image-preview" key={`${index}-${image.slice(-24)}`}>
+                    <img src={image} alt={`Card attachment ${index + 1}`} />
+                    <button
+                      type="button"
+                      aria-label={`Remove image ${index + 1}`}
+                      onClick={() => {
+                        const images = form.images?.filter((_, imageIndex) => imageIndex !== index) ?? []
+                        setForm({ ...form, image: images[0] ?? '', images })
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </label>
 
           <div className="form-actions">
-            <button className="button button-dark" type="submit" disabled={submitting}>
-              {submitting ? 'Saving...' : selectedCardId ? 'Update card' : 'Create card'} <span>↗</span>
+            <button className="button button-dark" type="submit" disabled={submitting || processingImages}>
+              {processingImages ? 'Processing images…' : submitting ? 'Saving...' : selectedCardId ? 'Update card' : 'Create card'} <span>↗</span>
             </button>
             {selectedCardId && (
               <button className="button button-dark" type="button" onClick={handleNewCard}>
@@ -226,28 +303,96 @@ export default function CardAdminPage({ onBack, onLogout }: CardAdminPageProps) 
         </form>
       </section>
 
-      <section className="card-form-section shell" style={{ marginTop: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ margin: 0 }}>Existing cards</h2>
+      <section className="card-form-section shell existing-cards-section">
+        <div className="existing-cards-heading">
+          <div>
+            <p className="eyebrow">Content library</p>
+            <h2>Existing cards</h2>
+            <p>Browse and edit the cards currently shown on your website.</p>
+          </div>
+          <span className="existing-cards-count">{cards.length} {cards.length === 1 ? 'card' : 'cards'}</span>
         </div>
 
-        <div style={{ display: 'grid', gap: '12px' }}>
-          {cards.length === 0 ? (
-            <p>No cards found yet.</p>
-          ) : (
-            cards.map((card) => (
-              <div key={card.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center', padding: '12px 16px', border: '1px solid #dfe7e5', borderRadius: '12px', background: 'rgba(255,255,255,0.6)' }}>
-                <div>
-                  <strong>{card.title}</strong>
-                  <div style={{ fontSize: '0.9rem', color: '#4f5d5a' }}>{card.category} · {card.status}</div>
-                </div>
-                <button className="button button-dark" type="button" onClick={() => handleEdit(card)}>
-                  Edit
-                </button>
+        {cards.length === 0 ? (
+          <div className="existing-cards-empty">
+            <span aria-hidden="true">✦</span>
+            <strong>No cards yet</strong>
+            <p>Create your first card using the form above.</p>
+          </div>
+        ) : (
+          <>
+            <div className="existing-cards-grid">
+              {visibleCards.map((card) => {
+                const images = card.images?.length ? card.images : [card.image]
+                return (
+                  <Card className="existing-card" key={card.id}>
+                    <CardImage className="existing-card-image">
+                      <img src={images[0]} alt={card.title} />
+                      {images.length > 1 && <span className="existing-card-image-count">+{images.length - 1} photos</span>}
+                    </CardImage>
+                    <CardContent className="existing-card-content">
+                      <div className="existing-card-meta">
+                        <span className={`existing-card-status existing-card-status-${card.status.toLowerCase()}`}>{card.status}</span>
+                        <span>{card.category}</span>
+                      </div>
+                      <CardTitle className="existing-card-title">{card.title}</CardTitle>
+                      <CardDescription className="existing-card-description">{card.description}</CardDescription>
+                      <button className="existing-card-edit" type="button" onClick={() => handleEdit(card)}>
+                        Edit card <span aria-hidden="true">↗</span>
+                      </button>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+            {pageCount > 1 && (
+              <div className="existing-cards-pagination">
+                <p>Showing {(currentPage - 1) * CARDS_PER_PAGE + 1}–{Math.min(currentPage * CARDS_PER_PAGE, cards.length)} of {cards.length}</p>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        aria-disabled={currentPage === 1}
+                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          setCurrentPage((page) => Math.max(1, page - 1))
+                        }}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === currentPage}
+                          aria-label={`Go to page ${page}`}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            setCurrentPage(page)
+                          }}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        aria-disabled={currentPage === pageCount}
+                        className={currentPage === pageCount ? 'pointer-events-none opacity-50' : ''}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          setCurrentPage((page) => Math.min(pageCount, page + 1))
+                        }}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
               </div>
-            ))
-          )}
-        </div>
+            )}
+          </>
+        )}
       </section>
     </section>
   )

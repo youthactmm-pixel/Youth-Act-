@@ -29,9 +29,51 @@ const cardSchema = new Schema(
       required: [true, 'photo is required'],
       trim: true,
     },
+    images: {
+      type: [String],
+      default: [],
+    },
   },
   {
     collection: 'cards',
+    timestamps: true,
+  },
+)
+
+const storySchema = new Schema(
+  {
+    title: {
+      type: String,
+      required: [true, 'title is required'],
+      trim: true,
+      maxlength: 160,
+    },
+    type: {
+      type: String,
+      required: [true, 'story type is required'],
+      trim: true,
+      maxlength: 80,
+    },
+    description: {
+      type: String,
+      required: [true, 'description is required'],
+      trim: true,
+      maxlength: 4000,
+    },
+    image: {
+      type: String,
+      required: [true, 'photo is required'],
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'draft'],
+      default: 'draft',
+      trim: true,
+    },
+  },
+  {
+    collection: 'stories',
     timestamps: true,
   },
 )
@@ -103,9 +145,37 @@ const townSchema = new Schema(
   },
 )
 
+const climateReportSchema = new Schema(
+  {
+    externalId: { type: String, unique: true, sparse: true, trim: true },
+    township: { type: String, trim: true, maxlength: 120, default: 'Unspecified' },
+    issueType: { type: String, required: true, trim: true, maxlength: 120 },
+    observationDate: { type: Date, required: true },
+    latitude: { type: Number, required: true, min: -90, max: 90 },
+    longitude: { type: Number, required: true, min: -180, max: 180 },
+    severity: {
+      type: String,
+      enum: ['low', 'moderate', 'high', 'critical'],
+      required: true,
+    },
+    sourceDescription: { type: String, trim: true, maxlength: 2000, default: '' },
+    approvedDescription: { type: String, trim: true, maxlength: 1000, default: '' },
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+      index: true,
+    },
+    verified: { type: Boolean, default: false },
+  },
+  { collection: 'climateReports', timestamps: true }
+)
+
 const Card = mongoose.model('Card', cardSchema)
+const Story = mongoose.model('Story', storySchema)
 const User = mongoose.model('User', userSchema)
 const GoogleSheetImport = mongoose.model('GoogleSheetImport', googleSheetImportSchema)
 const Town = mongoose.model('Town', townSchema)
+const ClimateReport = mongoose.model('ClimateReport', climateReportSchema)
 
-export { Card, User, GoogleSheetImport, Town }
+export { Card, Story, User, GoogleSheetImport, Town, ClimateReport }

@@ -15,14 +15,56 @@ export type CardModel = {
   category: string
   status: string
   image: string
+  images?: string[]
 }
 
 export type CardCreateInput = {
   image: string
+  images?: string[]
   title: string
   description: string
   category: string
   status: string
+}
+
+export type StoryModel = {
+  id: string
+  title: string
+  type: string
+  description: string
+  image: string
+  status: 'active' | 'draft'
+}
+
+export type StoryCreateInput = Omit<StoryModel, 'id'>
+
+export type ClimateReport = {
+  id: string
+  township: string
+  issueType: string
+  observationDate: string
+  latitude: number
+  longitude: number
+  severity: 'low' | 'moderate' | 'high' | 'critical'
+  status: 'pending' | 'approved' | 'rejected'
+  verified: boolean
+  description?: string
+  sourceDescription?: string
+  approvedDescription?: string
+}
+
+export type ClimateReportsResponse = {
+  reports: ClimateReport[]
+  riskZones: {
+    type: 'FeatureCollection'
+    features: Array<{
+      type: 'Feature'
+      properties: { tier: 'watch' | 'moderate' | 'high'; score: number; reportCount: number }
+      geometry: { type: 'Polygon'; coordinates: number[][][] }
+    }>
+  }
+  updatedAt: string
+  refreshIntervalSeconds: number
 }
 
 export type WeatherStatusResponse = {
@@ -210,8 +252,38 @@ export async function updateTown(townId: string, town: string): Promise<TownMode
 // Card API
 // =========================
 
-export async function fetchCards(): Promise<CardModel[]> {
-  return withBackendLoading(async () => {
+export async function fetchStories(): Promise<StoryModel[]> {
+  const response = await fetch(`${API_BASE_URL}/api/stories`)
+  if (!response.ok) {
+    throw new Error('Unable to load stories')
+  }
+  return response.json() as Promise<StoryModel[]>
+}
+
+export async function fetchAdminStories(): Promise<StoryModel[]> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/stories`, {
+    headers: getAuthHeaders(),
+  })
+  if (!response.ok) {
+    throw new Error(await readApiError(response, 'Unable to load stories'))
+  }
+  return response.json() as Promise<StoryModel[]>
+}
+
+export async function createStory(story: StoryCreateInput): Promise<StoryModel> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/stories`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(story),
+  })
+  if (!response.ok) {
+    throw new Error(await readApiError(response, 'Unable to create story'))
+  }
+  return response.json() as Promise<StoryModel>
+}
+
+export async function fetchCards(showLoading = true): Promise<CardModel[]> {
+  const loadCards = async () => {
     const response = await fetch(`${API_BASE_URL}/api/cards`)
 
     if (!response.ok) {
@@ -219,7 +291,8 @@ export async function fetchCards(): Promise<CardModel[]> {
     }
 
     return response.json() as Promise<CardModel[]>
-  })
+  }
+  return showLoading ? withBackendLoading(loadCards) : loadCards()
 }
 
 export async function fetchCardById(
@@ -352,4 +425,46 @@ export async function importGoogleSheetCards(sourceUrl: string): Promise<{ impor
 
     return response.json() as Promise<{ importedCount: number; cards: CardModel[] }>
   })
+}
+
+async function readApiError(response: Response, fallback: string) {
+  const body = await response.json().catch(() => null) as { message?: string; error?: string } | null
+  return body?.message ?? body?.error ?? fallback
+}
+
+export async function fetchClimateReports(): Promise<ClimateReportsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/climate/reports`)
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to load community reports.'))
+  return response.json() as Promise<ClimateReportsResponse>
+}
+
+export async function fetchClimateReportsForReview(): Promise<ClimateReport[]> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports`, {
+    headers: getAuthHeaders(),
+  })
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to load the review queue.'))
+  return response.json() as Promise<ClimateReport[]>
+}
+
+export async function syncKoboClimateReports(): Promise<{ imported: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/sync`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({}),
+  })
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to sync Kobo submissions.'))
+  return response.json() as Promise<{ imported: number }>
+}
+
+export async function moderateClimateReport(
+  reportId: string,
+  input: { status: 'approved' | 'rejected'; approvedDescription?: string; verified: boolean }
+): Promise<ClimateReport> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports/${encodeURIComponent(reportId)}`, {
+    method: 'PUT',
+    headers: jsonHeaders(),
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to update report moderation.'))
+  return response.json() as Promise<ClimateReport>
 }

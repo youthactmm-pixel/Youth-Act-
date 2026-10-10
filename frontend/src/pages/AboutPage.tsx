@@ -96,8 +96,10 @@ export default function AboutPage() {
                         <div className="p-1">
                           <Card className="h-full shadow-sm">
                             <CardContent className="space-y-3">
-                              <CardImage className="h-full w-full">
-                                <img className="h-full w-full object-cover" src={card.image} alt={card.title} />
+                              <CardImage className="program-card-images">
+                                {(card.images?.length ? card.images : [card.image]).map((image, index) => (
+                                  <img key={`${card.id}-${index}`} src={image} alt={`${card.title} image ${index + 1}`} />
+                                ))}
                               </CardImage>
                               <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
                               <CardDescription className="text-sm leading-6 text-slate-600">{card.description}</CardDescription>

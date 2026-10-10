@@ -21,7 +21,6 @@ import {
 import Threads from '@/components/Threads'
 import { CardModel } from '@/services/Api'
 import { fetchCards } from '@/services/Api'
-import { Skeleton } from '@/components/ui/skeleton'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 
@@ -34,18 +33,15 @@ export function HomePage() {
 
   // State hooks for managing application data and UI state
   const [programs, setPrograms] = useState<CardModel[]>([]); // Array of program cards
-  const [isLoadingCards, setIsLoadingCards] = useState(true); // Loading state for cards fetch
   const [whoWeAreOpen, setWhoWeAreOpen] = useState(false); // State for "Who We Are" dropdown menu
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // State for mobile menu visibility
 
   const loadPrograms = () => {
-    setIsLoadingCards(true)
-    fetchCards()
+    fetchCards(false)
       .then((data) => {
         setPrograms(data)
       })
       .catch(() => setPrograms([]))
-      .finally(() => setIsLoadingCards(false))
   }
 
   useEffect(() => {
@@ -107,29 +103,15 @@ export function HomePage() {
             className="w-full"
           >
             <CarouselContent>
-              {isLoadingCards
-                ? Array.from({ length: 3 }).map((_, index) => (
-                    <CarouselItem key={`skeleton-${index}`} className="basis-full md:basis-1/2 lg:basis-1/3">
-                      <div className="p-1">
-                        <Card className="h-full shadow-sm">
-                          <CardContent className="space-y-3">
-                            <Skeleton className="h-48 w-full rounded-xl" />
-                            <Skeleton className="h-6 w-2/3 rounded" />
-                            <Skeleton className="h-4 w-full rounded" />
-                            <Skeleton className="h-4 w-5/6 rounded" />
-                            <Skeleton className="h-5 w-24 rounded" />
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </CarouselItem>
-                  ))
-                : programs.map((card) => (
+              {programs.map((card) => (
                     <CarouselItem key={card.id} className="basis-full md:basis-1/2 lg:basis-1/3">
                       <div className="p-1">
                         <Card className="h-full shadow-sm">
                           <CardContent className="space-y-3">
-                            <CardImage className="h-full w-full ">
-                              <img className="h-full w-full object-cover" src={card.image} alt={card.image} />
+                            <CardImage className="program-card-images">
+                              {(card.images?.length ? card.images : [card.image]).map((image, index) => (
+                                <img key={`${card.id}-${index}`} src={image} alt={`${card.title} image ${index + 1}`} />
+                              ))}
                             </CardImage>
                             <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
                             <CardDescription className="text-sm leading-6 text-slate-600">

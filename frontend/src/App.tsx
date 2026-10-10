@@ -1,5 +1,4 @@
 import { ErrorInfo, ReactNode } from 'react';
-import { useSyncExternalStore } from 'react';
 import './App.css';
 import {
   HashRouter,
@@ -7,6 +6,7 @@ import {
   Route,
   Navigate,
   useNavigate,
+  useSearchParams,
 } from 'react-router-dom';
 import { Component } from 'react';
 
@@ -20,39 +20,12 @@ import StoriesPage from './pages/StoriesPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import CreateTownPage from './pages/CreateTownPage';
 import AdminLoginPage from './pages/AdminLoginPage';
+import CommunityMapPage from './pages/CommunityMapPage';
+import ClimateReportReviewPage from './pages/ClimateReportReviewPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminHomePage from './pages/AdminHomePage';
+import StoryAdminPage from './pages/StoryAdminPage';
 import { isAdminAuthenticated, clearAdminToken } from './services/auth';
-import {
-  getBackendLoadingSnapshot,
-  subscribeToBackendLoading,
-} from './services/backendLoading';
-
-function BackendLoadingPopup() {
-  const isLoading = useSyncExternalStore(
-    subscribeToBackendLoading,
-    getBackendLoadingSnapshot,
-    () => false
-  );
-
-  if (!isLoading) {
-    return null;
-  }
-
-  return (
-    <div className="backend-loading-backdrop" role="status" aria-live="polite">
-      <div className="backend-loading-popup">
-        <span className="backend-loading-spinner" aria-hidden="true" />
-        <p>
-          Fetching data
-          <span className="backend-loading-dots" aria-hidden="true">
-            <span>.</span>
-            <span>.</span>
-            <span>.</span>
-          </span>
-        </p>
-      </div>
-    </div>
-  );
-}
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -153,9 +126,25 @@ function AdminRoute() {
     return <Navigate to="/admin/login" replace />;
   }
 
+  return <AdminDashboardPage onLogout={() => {
+    clearAdminToken();
+    navigate('/admin/login');
+  }} />;
+}
+
+function AdminCardsRoute() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  if (!isAdminAuthenticated()) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
   return (
     <CardAdminPage
-      onBack={() => navigate('/')}
+      onBack={() => navigate('/admin')}
+      onReviewReports={() => navigate('/admin/reports')}
+      initialCardId={searchParams.get('edit') ?? undefined}
       onLogout={() => {
         clearAdminToken();
         navigate('/admin/login');
@@ -173,6 +162,38 @@ function CreateTownRoute() {
 
   return (
     <CreateTownPage
+      onBack={() => navigate('/admin')}
+      onLogout={() => {
+        clearAdminToken();
+        navigate('/admin/login');
+      }}
+    />
+  );
+}
+
+function StoryAdminRoute() {
+  const navigate = useNavigate();
+  if (!isAdminAuthenticated()) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  return (
+    <StoryAdminPage
+      onBack={() => navigate('/admin')}
+      onLogout={() => {
+        clearAdminToken();
+        navigate('/admin/login');
+      }}
+    />
+  );
+}
+
+function ClimateReportReviewRoute() {
+  const navigate = useNavigate();
+  if (!isAdminAuthenticated()) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  return (
+    <ClimateReportReviewPage
       onBack={() => navigate('/admin')}
       onLogout={() => {
         clearAdminToken();
@@ -201,33 +222,33 @@ function App() {
   return (
     <ErrorBoundary>
       <>
-        <BackendLoadingPopup />
         <HashRouter>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/programs" element={<ProgramsPage />} />
             <Route path="/stories" element={<StoriesPage />} />
+            <Route path="/community-map" element={<CommunityMapPage />} />
 
             <Route
               path="/project/:id/projectdetailpage"
               element={<ProjectDetailPage />}
             />
 
-            <Route
-              path="/admin"
-              element={<AdminRoute />}
-            />
+            <Route path="/admin" element={<AdminRoute />}>
+              <Route index element={<AdminHomePage />} />
+              <Route path="cards" element={<AdminCardsRoute />} />
+              <Route path="stories" element={<StoryAdminRoute />} />
+              <Route path="towns" element={<CreateTownRoute />} />
+              <Route path="reports" element={<ClimateReportReviewRoute />} />
+            </Route>
 
             <Route
               path="/admin/login"
               element={<AdminLoginRoute />}
             />
 
-            <Route
-              path="/create-town"
-              element={<CreateTownRoute />}
-            />
+            <Route path="/create-town" element={<Navigate to="/admin/towns" replace />} />
 
             <Route
               path="/yangon-weather"

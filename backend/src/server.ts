@@ -6,9 +6,10 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Card, User, GoogleSheetImport, Town } from './Schema'
+import { Card, Story, User, GoogleSheetImport, Town, ClimateReport } from './Schema'
 import { connectDB } from './connectDB'
 import mongoose from 'mongoose'
+import axios from 'axios'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -19,6 +20,8 @@ const port = process.env.PORT || 4000
 const DEFAULT_ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin'
 const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin123'
 const adminSessions = new Map<string, { username: string; createdAt: number }>()
+const KOBO_API_URL = (process.env.KOBO_API_URL ?? 'https://kf.kobotoolbox.org').replace(/\/+$/, '')
+let isKoboSyncRunning = false
 
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '10mb' }))
@@ -32,7 +35,37 @@ function serializeCard(card: any) {
     category: plainCard?.category,
     status: plainCard?.status,
     image: plainCard?.image,
+    images: Array.isArray(plainCard?.images) && plainCard.images.length > 0
+      ? plainCard.images
+      : plainCard?.image ? [plainCard.image] : [],
   }
+}
+
+function serializeStory(story: any) {
+  const plainStory = typeof story?.toObject === 'function' ? story.toObject() : story
+  return {
+    id: plainStory?._id ? plainStory._id.toString() : plainStory?.id,
+    title: plainStory?.title,
+    type: plainStory?.type,
+    description: plainStory?.description,
+    image: plainStory?.image,
+    status: plainStory?.status,
+  }
+}
+
+function getCardImages(body: Record<string, unknown>): string[] | null {
+  const submittedImages = body.images
+  const images: unknown[] = Array.isArray(submittedImages)
+    ? submittedImages
+    : typeof body.image === 'string' && body.image ? [body.image] : []
+  if (
+    images.length === 0 ||
+    images.length > 8 ||
+    !images.every((image): image is string => typeof image === 'string' && image.length > 0)
+  ) {
+    return null
+  }
+  return images
 }
 
 function serializeTown(town: any) {
@@ -157,6 +190,203 @@ function requireAdmin(request: express.Request, response: express.Response, next
   next()
 }
 
+function normalizeKoboKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function flattenKoboRecord(record: Record<string, unknown>) {
+  const values = new Map<string, unknown>()
+  const visit = (value: unknown, path: string) => {
+    if (Array.isArray(value)) {
+      if (value.every((part) => typeof part === 'number')) {
+        values.set(normalizeKoboKey(path), value)
+      } else {
+        value.forEach((part, index) => visit(part, `${path}${index}`))
+      }
+      return
+    }
+    if (value && typeof value === 'object') {
+      for (const [key, nestedValue] of Object.entries(value)) {
+        visit(nestedValue, path ? `${path}/${key}` : key)
+      }
+      return
+    }
+    values.set(normalizeKoboKey(path), value)
+  }
+
+  visit(record, '')
+  return values
+}
+
+function pickKoboValue(values: Map<string, unknown>, aliases: string[]) {
+  for (const alias of aliases) {
+    const wanted = normalizeKoboKey(alias)
+    const value = values.get(wanted) ?? [...values.entries()].find(([key]) => key.endsWith(wanted))?.[1]
+    if (value !== undefined && value !== null && String(value).trim()) return value
+  }
+  return undefined
+}
+
+function parseKoboCoordinate(value: unknown): [number, number] | null {
+  if (Array.isArray(value) && value.length >= 2) {
+    const latitude = Number(value[0])
+    const longitude = Number(value[1])
+    return Number.isFinite(latitude) && Number.isFinite(longitude) ? [latitude, longitude] : null
+  }
+  if (typeof value !== 'string') return null
+  const parts = value.trim().split(/[,\s]+/).map(Number)
+  return parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])
+    ? [parts[0], parts[1]]
+    : null
+}
+
+function normalizeKoboSeverity(value: unknown): 'low' | 'moderate' | 'high' | 'critical' {
+  const severity = String(value ?? '').toLowerCase()
+  if (/critical|extreme|very high|severe/.test(severity)) return 'critical'
+  if (/high/.test(severity)) return 'high'
+  if (/medium|moderate/.test(severity)) return 'moderate'
+  return 'low'
+}
+
+function normalizeKoboReport(record: Record<string, unknown>) {
+  const values = flattenKoboRecord(record)
+  const coordinate =
+    parseKoboCoordinate(pickKoboValue(values, ['_geolocation', 'geolocation', 'gps', 'geopoint', 'location'])) ??
+    (() => {
+      const latitude = Number(pickKoboValue(values, ['latitude', 'lat']))
+      const longitude = Number(pickKoboValue(values, ['longitude', 'lon', 'lng']))
+      return Number.isFinite(latitude) && Number.isFinite(longitude) ? [latitude, longitude] as [number, number] : null
+    })()
+
+  if (!coordinate || Math.abs(coordinate[0]) > 90 || Math.abs(coordinate[1]) > 180) return null
+
+  const issueType = String(pickKoboValue(values, ['issue_type', 'issue', 'environmental_issue', 'climate_hazard', 'hazard', 'category']) ?? '').trim()
+  if (!issueType) return null
+  const observedAt = pickKoboValue(values, ['observation_date', 'date_observed', 'date', '_submission_time'])
+  const parsedDate = observedAt ? new Date(String(observedAt)) : new Date()
+  const id = String(record._uuid ?? record._id ?? record.id ?? '').trim()
+  if (!id) return null
+
+  return {
+    externalId: id,
+    township: String(pickKoboValue(values, ['township', 'town', 'district', 'area']) ?? 'Unspecified').trim().slice(0, 120) || 'Unspecified',
+    issueType: issueType.slice(0, 120),
+    observationDate: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
+    latitude: coordinate[0],
+    longitude: coordinate[1],
+    severity: normalizeKoboSeverity(pickKoboValue(values, ['severity', 'impact_level', 'risk_level'])),
+    sourceDescription: String(pickKoboValue(values, ['approved_description', 'description', 'observation', 'details', 'notes']) ?? '').trim().slice(0, 2000),
+  }
+}
+
+async function syncKoboReports() {
+  const assetUid = process.env.KOBO_ASSET_UID?.trim()
+  const apiToken = process.env.KOBO_API_TOKEN?.trim()
+  if (!assetUid || !apiToken) return { imported: 0, configured: false }
+  if (isKoboSyncRunning) return { imported: 0, configured: true }
+
+  isKoboSyncRunning = true
+  try {
+    if (new URL(KOBO_API_URL).protocol !== 'https:') {
+      throw new Error('KOBO_API_URL must use HTTPS to protect the API token')
+    }
+    let nextUrl: string | null = `${KOBO_API_URL}/api/v2/assets/${encodeURIComponent(assetUid)}/data/?format=json`
+    let imported = 0
+    let pageCount = 0
+    while (nextUrl && pageCount < 50) {
+      const parsedUrl = new URL(nextUrl)
+      if (parsedUrl.origin !== new URL(KOBO_API_URL).origin) {
+        throw new Error('Kobo pagination returned an unexpected host')
+      }
+      const pageResponse = await axios.get<{ results?: unknown[]; next?: string | null }>(nextUrl, {
+        headers: { Authorization: `Token ${apiToken}` },
+        timeout: 20000,
+        maxRedirects: 0,
+      })
+      const pageData: { results?: unknown[]; next?: string | null } = pageResponse.data
+      const records = Array.isArray(pageData.results) ? pageData.results : []
+      for (const record of records) {
+        const normalized = normalizeKoboReport(record as Record<string, unknown>)
+        if (!normalized) continue
+        const upsertResult = await ClimateReport.updateOne(
+          { externalId: normalized.externalId },
+          { $setOnInsert: { ...normalized, status: 'pending', verified: false } },
+          { upsert: true }
+        )
+        imported += upsertResult.upsertedCount
+      }
+      nextUrl = typeof pageData.next === 'string' ? pageData.next : null
+      pageCount += 1
+    }
+    if (nextUrl) throw new Error('Kobo submissions exceeded the 50-page synchronization limit')
+    return { imported, configured: true }
+  } finally {
+    isKoboSyncRunning = false
+  }
+}
+
+function serializeClimateReport(report: any, publicView = false) {
+  const latitude = Number(report.latitude)
+  const longitude = Number(report.longitude)
+  const common = {
+    id: report._id?.toString() ?? report.id,
+    township: report.township,
+    issueType: report.issueType,
+    observationDate: new Date(report.observationDate).toISOString(),
+    latitude: publicView ? Number(latitude.toFixed(3)) : latitude,
+    longitude: publicView ? Number(longitude.toFixed(3)) : longitude,
+    severity: report.severity,
+    status: report.status,
+    verified: Boolean(report.verified),
+  }
+  return publicView
+    ? { ...common, description: sanitizePublicDescription(report.approvedDescription) }
+    : { ...common, sourceDescription: report.sourceDescription, approvedDescription: report.approvedDescription }
+}
+
+function sanitizePublicDescription(value: unknown) {
+  return String(value ?? '')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[contact detail removed]')
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, '[link removed]')
+    .replace(/(?:\+?\d[\d\s().-]{6,}\d)/g, '[contact detail removed]')
+    .trim()
+}
+
+const severityScores: Record<string, number> = { low: 1, moderate: 2, high: 3, critical: 4 }
+
+function createRiskZones(reports: Array<{ latitude: number; longitude: number; severity: string }>) {
+  const cellSize = 0.05
+  const cells = new Map<string, { south: number; west: number; score: number; count: number }>()
+  for (const report of reports) {
+    const south = Math.floor(report.latitude / cellSize) * cellSize
+    const west = Math.floor(report.longitude / cellSize) * cellSize
+    const key = `${south.toFixed(2)}:${west.toFixed(2)}`
+    const cell = cells.get(key) ?? { south, west, score: 0, count: 0 }
+    cell.score += severityScores[report.severity] ?? 1
+    cell.count += 1
+    cells.set(key, cell)
+  }
+  return {
+    type: 'FeatureCollection',
+    features: [...cells.values()].map((cell) => {
+      const tier = cell.score >= 8 ? 'high' : cell.score >= 4 ? 'moderate' : 'watch'
+      const north = cell.south + cellSize
+      const east = cell.west + cellSize
+      return {
+        type: 'Feature',
+        properties: { tier, score: cell.score, reportCount: cell.count },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [cell.west, cell.south], [east, cell.south], [east, north],
+            [cell.west, north], [cell.west, cell.south],
+          ]],
+        },
+      }
+    }),
+  }
+}
+
 async function ensureDefaultAdminUser() {
   const normalizedUsername = DEFAULT_ADMIN_USERNAME.trim().toLowerCase()
   const existingUser = await User.findOne({ username: normalizedUsername }).lean()
@@ -228,6 +458,89 @@ app.post('/createCard', async (_request, response) => {
 
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: 'youthact-api' })
+})
+
+app.get('/api/climate/reports', async (_request, response) => {
+  try {
+    const reports = await ClimateReport.find({ status: 'approved' }).sort({ observationDate: -1 }).limit(500).lean()
+    response.json({
+      reports: reports.map((report) => serializeClimateReport(report, true)),
+      riskZones: createRiskZones(reports),
+      updatedAt: new Date().toISOString(),
+      refreshIntervalSeconds: 60,
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load climate reports'
+    response.status(500).json({ message: 'Unable to load climate reports', error: errorMessage })
+  }
+})
+
+app.get('/api/admin/climate/reports', requireAdmin, async (request, response) => {
+  try {
+    const status = typeof request.query.status === 'string' ? request.query.status : 'pending'
+    if (!['pending', 'approved', 'rejected'].includes(status)) {
+      response.status(400).json({ message: 'Invalid report status' })
+      return
+    }
+    const reports = await ClimateReport.find({ status }).sort({ createdAt: -1 }).limit(500).lean()
+    response.json(reports.map((report) => serializeClimateReport(report)))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load report review queue'
+    response.status(500).json({ message: 'Unable to load report review queue', error: errorMessage })
+  }
+})
+
+app.post('/api/admin/climate/sync', requireAdmin, async (_request, response) => {
+  try {
+    const result = await syncKoboReports()
+    if (!result.configured) {
+      response.status(503).json({ message: 'Kobo sync is not configured on the server.' })
+      return
+    }
+    response.json(result)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to sync Kobo submissions'
+    console.error('Kobo submission sync failed:', errorMessage)
+    response.status(502).json({ message: 'Unable to sync Kobo submissions', error: errorMessage })
+  }
+})
+
+app.put('/api/admin/climate/reports/:id', requireAdmin, async (request, response) => {
+  try {
+    if (!mongoose.isValidObjectId(request.params.id)) {
+      response.status(404).json({ message: 'Climate report not found' })
+      return
+    }
+    const status = request.body?.status
+    const approvedDescription = typeof request.body?.approvedDescription === 'string'
+      ? request.body.approvedDescription.trim().slice(0, 1000)
+      : ''
+    if (!['approved', 'rejected', 'pending'].includes(status)) {
+      response.status(400).json({ message: 'A valid review status is required' })
+      return
+    }
+    if (status === 'approved' && !approvedDescription) {
+      response.status(400).json({ message: 'Add an approved, privacy-reviewed description before publishing.' })
+      return
+    }
+    const report = await ClimateReport.findByIdAndUpdate(
+      request.params.id,
+      {
+        status,
+        approvedDescription: status === 'approved' ? approvedDescription : '',
+        verified: status === 'approved' && request.body?.verified === true,
+      },
+      { new: true, runValidators: true }
+    )
+    if (!report) {
+      response.status(404).json({ message: 'Climate report not found' })
+      return
+    }
+    response.json(serializeClimateReport(report))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to update climate report'
+    response.status(400).json({ message: 'Unable to update climate report', error: errorMessage })
+  }
 })
 
 app.get('/api/weather', async (request, response) => {
@@ -409,6 +722,55 @@ app.get('/api/programs', async (_request, response) => {
   response.json(cards.map(serializeCard))
 })
 
+app.get('/api/stories', async (_request, response) => {
+  try {
+    const stories = await Story.find({ status: 'active' }).sort({ createdAt: -1 }).lean()
+    response.json(stories.map(serializeStory))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load stories'
+    response.status(500).json({ message: 'Unable to load stories', error: errorMessage })
+  }
+})
+
+app.get('/api/admin/stories', requireAdmin, async (_request, response) => {
+  try {
+    const stories = await Story.find({}).sort({ createdAt: -1 }).lean()
+    response.json(stories.map(serializeStory))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load stories'
+    response.status(500).json({ message: 'Unable to load stories', error: errorMessage })
+  }
+})
+
+app.post('/api/admin/stories', requireAdmin, async (request, response) => {
+  try {
+    const title = typeof request.body?.title === 'string' ? request.body.title.trim() : ''
+    const type = typeof request.body?.type === 'string' ? request.body.type.trim() : ''
+    const description = typeof request.body?.description === 'string' ? request.body.description.trim() : ''
+    const image = typeof request.body?.image === 'string' ? request.body.image.trim() : ''
+    const status = request.body?.status
+
+    if (!title || !type || !description || !image) {
+      response.status(400).json({ message: 'Title, story type, description, and image are required.' })
+      return
+    }
+    if (title.length > 160 || type.length > 80 || description.length > 4000) {
+      response.status(400).json({ message: 'Some story fields exceed the allowed length.' })
+      return
+    }
+    if (!['active', 'draft'].includes(status)) {
+      response.status(400).json({ message: 'Choose whether the story should be published or saved as a draft.' })
+      return
+    }
+
+    const story = await Story.create({ title, type, description, image, status })
+    response.status(201).json(serializeStory(story))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to create story'
+    response.status(400).json({ message: 'Unable to create story', error: errorMessage })
+  }
+})
+
 app.get('/api/cards', async (_request, response) => {
   try {
     const cards = await Card.find({}).sort({ createdAt: -1 }).lean()
@@ -527,12 +889,18 @@ app.get('/api/projects/:id', async (request, response) => {
 
 app.post('/api/cards', requireAdmin, async (request, response) => {
   try {
+    const images = getCardImages(request.body ?? {})
+    if (!images) {
+      response.status(400).json({ message: 'Attach between 1 and 8 valid card images.' })
+      return
+    }
     const newCard = await Card.create({
       title: request.body.title,
       description: request.body.description,
       category: request.body.category,
       status: request.body.status ?? 'active',
-      image: request.body.image,
+      image: images[0],
+      images,
     })
 
     response.status(201).json(serializeCard(newCard))
@@ -544,12 +912,18 @@ app.post('/api/cards', requireAdmin, async (request, response) => {
 
 app.put('/api/cards/:id', requireAdmin, async (request, response) => {
   try {
+    const images = getCardImages(request.body ?? {})
+    if (!images) {
+      response.status(400).json({ message: 'Attach between 1 and 8 valid card images.' })
+      return
+    }
     const payload = {
       title: request.body.title,
       description: request.body.description,
       category: request.body.category,
       status: request.body.status ?? 'active',
-      image: request.body.image,
+      image: images[0],
+      images,
     }
 
     const card = await Card.findByIdAndUpdate(request.params.id, payload, {
@@ -591,6 +965,14 @@ if (existsSync(frontendDistPath)) {
 async function startServer() {
   await connectDB()
   await ensureDefaultAdminUser()
+  syncKoboReports().catch((error) => {
+    console.error('Initial Kobo submission sync failed:', error instanceof Error ? error.message : error)
+  })
+  setInterval(() => {
+    syncKoboReports().catch((error) => {
+      console.error('Scheduled Kobo submission sync failed:', error instanceof Error ? error.message : error)
+    })
+  }, 60 * 1000)
   app.listen(port, () => {
     console.log(`YouthAct API running at http://localhost:${port}`)
   })
