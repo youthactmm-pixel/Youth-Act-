@@ -15,6 +15,7 @@ import YangonWeatherPage from './pages/YangonWeatherPage';
 import WeatherStatusPage from './pages/WeatherStatusPage';
 import CardAdminPage from './pages/CardAdminPage';
 import AboutPage from './pages/AboutPage';
+import WhoWeArePage from './pages/WhoWeArePage';
 import ProgramsPage from './pages/ProgramsPage';
 import StoriesPage from './pages/StoriesPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
@@ -226,6 +227,9 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/mission" element={<WhoWeArePage />} />
+            <Route path="/leadership" element={<WhoWeArePage />} />
+            <Route path="/partnerships" element={<WhoWeArePage />} />
             <Route path="/programs" element={<ProgramsPage />} />
             <Route path="/stories" element={<StoriesPage />} />
             <Route path="/community-map" element={<CommunityMapPage />} />
