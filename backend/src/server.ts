@@ -34,6 +34,7 @@ function serializeCard(card: any) {
     description: plainCard?.description,
     category: plainCard?.category,
     status: plainCard?.status,
+    town: plainCard?.town ?? '',
     image: plainCard?.image,
     images: Array.isArray(plainCard?.images) && plainCard.images.length > 0
       ? plainCard.images
@@ -898,6 +899,7 @@ app.post('/api/cards', requireAdmin, async (request, response) => {
       title: request.body.title,
       description: request.body.description,
       category: request.body.category,
+      town: typeof request.body.town === 'string' ? request.body.town.trim() : '',
       status: request.body.status ?? 'active',
       image: images[0],
       images,
@@ -921,6 +923,7 @@ app.put('/api/cards/:id', requireAdmin, async (request, response) => {
       title: request.body.title,
       description: request.body.description,
       category: request.body.category,
+      town: typeof request.body.town === 'string' ? request.body.town.trim() : '',
       status: request.body.status ?? 'active',
       image: images[0],
       images,

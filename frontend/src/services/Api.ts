@@ -14,6 +14,7 @@ export type CardModel = {
   description: string
   category: string
   status: string
+  town?: string
   image: string
   images?: string[]
 }
@@ -25,6 +26,7 @@ export type CardCreateInput = {
   description: string
   category: string
   status: string
+  town?: string
 }
 
 export type StoryModel = {

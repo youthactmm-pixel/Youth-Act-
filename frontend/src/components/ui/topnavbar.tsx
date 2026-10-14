@@ -94,21 +94,7 @@
           </div>
           <Link to="/programs">Programs</Link>
           <Link to="/stories">Stories</Link>
-          <Link to="/community-map">Community map</Link>
-          <Combobox items={towns} value={selectedTown} onValueChange={handleTownChange}>
-            <ComboboxInput placeholder="Select an Area" />
-            <ComboboxContent>
-              <ComboboxEmpty>No items found.</ComboboxEmpty>
-              <ComboboxList>
-                {(item) => (
-                  <ComboboxItem key={item} value={item}>
-                    {item}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
-          <button className="nav-weather" type="button" onClick={() => navigate('/yangon-weather')}>Weather</button>
+          <Link to="/community-map">Community + weather</Link>
         </div>
         <button className="nav-cta" type="button" onClick={() => navigate('/admin')}>Create card <span>↗</span></button>
       </nav>

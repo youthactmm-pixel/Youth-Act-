@@ -18,6 +18,11 @@ const cardSchema = new Schema(
       required: [true, 'category is required'],
       trim: true,
     },
+    town: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     status: {
       type: String,
       enum: ['active', 'draft', 'archived'],

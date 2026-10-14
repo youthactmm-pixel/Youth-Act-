@@ -18,6 +18,14 @@ import {
 import { Link } from 'react-router-dom'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CardModel, fetchCards } from '@/services/Api'
+import { ArrowDown, ArrowRight, BookOpen, Leaf, Map, UsersRound } from 'lucide-react'
+
+const focusAreas = [
+  { number: '01', title: 'Climate education', icon: BookOpen },
+  { number: '02', title: 'Youth leadership & engagement', icon: UsersRound },
+  { number: '03', title: 'Digital innovation & mapping', icon: Map },
+  { number: '04', title: 'Community action & resilience', icon: Leaf },
+]
 
 export default function AboutPage() {
   const [programs, setPrograms] = useState<CardModel[]>([])
@@ -38,40 +46,89 @@ export default function AboutPage() {
   }, [])
 
   return (
-    <div className="app-shell inner-page">
+    <div className="app-shell inner-page about-page">
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
 
       <main>
-        <section className="about-hero shell">
-          <img className="hero-img-about" src="/nature.jpg" alt="YouthAct campaign artwork" />
-        </section>
-
-        <section className="page-hero shell">
-          <div>
-            <p className="eyebrow">Who we are</p>
+        <section className="about-page-hero shell">
+          <div className="about-page-hero-copy">
+            <p className="about-page-kicker"><span />Who we are</p>
             <h1>
-              Young people
-              <br />
-              <em>moving forward.</em>
+              Young minds<br />
+              <em>for a greener</em><br />
+              future.
             </h1>
-          </div>
-          <p className="page-hero-copy">
-            YouthAct is a platform for young people who care deeply about their communities and are ready to turn that care into action.
-          </p>
-        </section>
-
-        <section className="about-feature shell">
-          <img src="/youthact1.jpg" alt="YouthAct community members working together" />
-          <div>
-            <p className="eyebrow">Our reason to gather</p>
-            <h2>Change starts with a room full of people who are willing to listen.</h2>
-            <p className="body-copy">
-              We create space for fresh thinking, honest conversations, and practical projects. Our work connects young people with the knowledge, confidence, and community they need to shape a greener, fairer future.
+            <p className="about-page-lead">
+              Youth Act is an independent, youth-led initiative driven by young people passionate about climate action, education, community engagement, innovation, and youth leadership.
             </p>
+            <Link className="about-page-cta" to="/programs">Explore our work <ArrowRight size={17} /></Link>
+          </div>
+          <div className="about-page-hero-visual">
+            <img src="/nature.jpg" alt="Farmers tending crops in a green field" />
+            <div className="about-image-label"><span>YOUTH ACT</span><strong>Young minds<br />for a greener future.</strong><Leaf size={21} /></div>
+            <span className="about-image-caption">Climate resilience starts with community.</span>
+          </div>
+          <div className="about-hero-bottom">
+            <span>01 / ABOUT YOUTH ACT</span>
+            <span className="about-hero-bottom-line" />
+            <p>Young people are not only beneficiaries of a sustainable future — they help create it.</p>
+            <a href="#about-focus">Discover what drives us <ArrowDown size={15} /></a>
           </div>
         </section>
 
-        <section className="shell">
+        <section className="about-focus-section shell" id="about-focus">
+          <div className="about-focus-visual">
+            <img src="/youthact1.jpg" alt="Youth Act campaign artwork for a greener future" />
+            <span className="about-focus-stamp">LEARN<br />TOGETHER<br />ACT TOGETHER</span>
+          </div>
+          <div className="about-focus-content">
+            <p className="about-page-kicker"><span />What we do</p>
+            <h2>Young people learning, leading, and building change together.</h2>
+            <p className="about-focus-description">
+              We create spaces for young people to learn about climate change, build practical skills, take initiative, and work together on community-driven projects. By connecting youth with local communities, schools, and organisations, we help address local challenges and build more resilient communities.
+            </p>
+            <div className="about-focus-heading"><span>OUR CORE AREAS</span><span>01 — 04</span></div>
+            <div className="about-focus-grid">
+              {focusAreas.map(({ number, title, icon: Icon }) => (
+                <article key={number}>
+                  <span className="about-focus-icon"><Icon size={19} strokeWidth={1.6} /></span>
+                  <div><small>{number}</small><h3>{title}</h3></div>
+                  <ArrowRight className="about-focus-arrow" size={16} />
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="about-purpose">
+          <div className="shell about-purpose-inner">
+            <div className="about-purpose-heading">
+              <p className="about-page-kicker"><span />Our mission &amp; vision</p>
+              <h2>Creating a future<br />we can <em>grow into.</em></h2>
+              <p>We believe young people are not only beneficiaries of a sustainable future, but active contributors to creating it.</p>
+            </div>
+            <div className="about-purpose-cards">
+              <article className="about-purpose-card about-purpose-card-mission">
+                <div className="about-purpose-card-top"><span>01</span><span>WHY WE'RE HERE</span></div>
+                <h3>Our mission</h3>
+                <p>To empower young people with the knowledge, opportunities, and leadership skills to take part in climate education, environmental protection, and building sustainable communities.</p>
+                <BookOpen size={25} strokeWidth={1.4} />
+              </article>
+              <article className="about-purpose-card about-purpose-card-vision">
+                <div className="about-purpose-card-top"><span>02</span><span>WHERE WE'RE GOING</span></div>
+                <h3>Our vision</h3>
+                <p>A future where young people are climate-conscious leaders, equipped with practical skills and actively creating meaningful, inclusive, and sustainable solutions for their communities.</p>
+                <Leaf size={25} strokeWidth={1.4} />
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="about-programs shell">
+          <div className="about-programs-heading">
+            <div><p className="about-page-kicker"><span />From ideas to action</p><h2>Explore what we're growing.</h2></div>
+            <p>Discover the initiatives young people are bringing to life in their communities.</p>
+          </div>
           <div className="flex items-center justify-between gap-4">
             <Carousel opts={{ align: 'start' }} className="w-full">
               <CarouselContent>

@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { CircleMarker, GeoJSON, MapContainer, Popup, TileLayer } from 'react-leaflet'
-import type { LatLngExpression } from 'leaflet'
-import { ArrowLeft, CalendarDays, RefreshCw } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { CircleMarker, GeoJSON, MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
+import { divIcon, type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
+import { ArrowLeft, CalendarDays, CloudSun, Droplets, MapPin, RefreshCw, Thermometer, Wind } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import TopNavbar from '@/components/ui/topnavbar'
 import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
-import { fetchClimateReports, type ClimateReport, type ClimateReportsResponse } from '@/services/Api'
+import { fetchCards, fetchClimateReports, fetchWeatherStatus, type CardModel, type ClimateReport, type ClimateReportsResponse, type WeatherStatusResponse } from '@/services/Api'
 
 const DEFAULT_CENTER: LatLngExpression = [19, 96]
+const DEFAULT_WEATHER_LOCATION = [16.8661, 96.1951] as const
 const severityColors: Record<ClimateReport['severity'], string> = {
   low: '#31865b',
   moderate: '#d39b20',
@@ -17,6 +18,43 @@ const severityColors: Record<ClimateReport['severity'], string> = {
   critical: '#bd3b3b',
 }
 const riskColors = { watch: '#d9bf63', moderate: '#e99447', high: '#cb4d45' }
+const weatherPin = divIcon({
+  className: 'community-weather-pin',
+  html: '<span></span>',
+  iconSize: [30, 38],
+  iconAnchor: [15, 34],
+})
+
+function getWeatherIcon(icon: string) {
+  const condition = icon.slice(0, 2)
+  if (condition === '11') return '⛈️'
+  if (condition === '09' || condition === '10') return '🌧️'
+  if (condition === '13') return '❄️'
+  if (condition === '50') return '🌫️'
+  if (condition === '01') return icon.endsWith('n') ? '🌙' : '☀️'
+  if (condition === '02') return '🌤️'
+  if (condition === '03') return '⛅'
+  if (condition === '04') return '☁️'
+  return '🌡️'
+}
+
+function formatWeatherDescription(description: string) {
+  return description ? `${description[0].toUpperCase()}${description.slice(1)}` : 'Unknown'
+}
+
+function formatForecastDay(date: string, index: number) {
+  if (index === 0) return 'Today'
+  return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })
+}
+
+function MapLocationPicker({ onSelect }: { onSelect: (point: [number, number]) => void }) {
+  useMapEvents({
+    click(event: LeafletMouseEvent) {
+      onSelect([event.latlng.lat, event.latlng.lng])
+    },
+  })
+  return null
+}
 
 function buildRiskZones(reports: ClimateReport[]): ClimateReportsResponse['riskZones'] {
   const gridSize = 0.05
@@ -124,6 +162,7 @@ function DateFilter({
 }
 
 export default function CommunityMapPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [reports, setReports] = useState<ClimateReport[]>([])
   const [serverRiskZones, setServerRiskZones] = useState<ClimateReportsResponse['riskZones'] | null>(null)
   const [lastUpdated, setLastUpdated] = useState('')
@@ -134,6 +173,50 @@ export default function CommunityMapPage() {
   const [severity, setSeverity] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [projects, setProjects] = useState<CardModel[]>([])
+  const [projectsError, setProjectsError] = useState('')
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [weatherResult, setWeatherResult] = useState<{
+    requestKey: string
+    data?: WeatherStatusResponse
+    error?: string
+  } | null>(null)
+  const [weatherReloadKey, setWeatherReloadKey] = useState(0)
+  const requestedLatitude = Number(searchParams.get('lat'))
+  const requestedLongitude = Number(searchParams.get('lon'))
+  const hasValidCoordinates =
+    searchParams.has('lat') &&
+    searchParams.has('lon') &&
+    Number.isFinite(requestedLatitude) &&
+    Number.isFinite(requestedLongitude) &&
+    Math.abs(requestedLatitude) <= 90 &&
+    Math.abs(requestedLongitude) <= 180
+  const latitude = hasValidCoordinates ? requestedLatitude : DEFAULT_WEATHER_LOCATION[0]
+  const longitude = hasValidCoordinates ? requestedLongitude : DEFAULT_WEATHER_LOCATION[1]
+  const locationLabel = searchParams.get('label')?.trim() || 'Yangon, Myanmar'
+  const weatherRequestKey = `${latitude.toFixed(5)}:${longitude.toFixed(5)}:${weatherReloadKey}`
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchWeatherStatus(latitude, longitude, controller.signal)
+      .then((data) => setWeatherResult({ requestKey: weatherRequestKey, data }))
+      .catch((fetchError: unknown) => {
+        if (controller.signal.aborted) return
+        setWeatherResult({
+          requestKey: weatherRequestKey,
+          error: fetchError instanceof Error ? fetchError.message : 'Weather data could not be loaded.',
+        })
+      })
+
+    return () => controller.abort()
+  }, [latitude, longitude, weatherReloadKey, weatherRequestKey])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setWeatherReloadKey((key) => key + 1)
+    }, 10 * 60 * 1000)
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const refreshReports = useCallback(async () => {
     try {
@@ -155,6 +238,15 @@ export default function CommunityMapPage() {
     return () => window.clearInterval(intervalId)
   }, [refreshReports])
 
+  useEffect(() => {
+    fetchCards(false)
+      .then(setProjects)
+      .catch((fetchError: unknown) => {
+        setProjectsError(fetchError instanceof Error ? fetchError.message : 'Projects could not be loaded.')
+      })
+      .finally(() => setProjectsLoading(false))
+  }, [])
+
   const townships = useMemo(() => [...new Set(reports.map((report) => report.township))].sort(), [reports])
   const issueTypes = useMemo(() => [...new Set(reports.map((report) => report.issueType))].sort(), [reports])
   const filteredReports = useMemo(() => reports.filter((report) => {
@@ -170,6 +262,30 @@ export default function CommunityMapPage() {
     () => hasActiveFilters || !serverRiskZones ? buildRiskZones(filteredReports) : serverRiskZones,
     [filteredReports, hasActiveFilters, serverRiskZones]
   )
+  const selectWeatherLocation = (point: [number, number]) => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+      nextParams.set('lat', point[0].toFixed(5))
+      nextParams.set('lon', point[1].toFixed(5))
+      nextParams.set('label', 'Selected map location')
+      return nextParams
+    }, { replace: true })
+  }
+  const currentWeatherResult = weatherResult?.requestKey === weatherRequestKey ? weatherResult : null
+  const weather = currentWeatherResult?.data ?? null
+  const weatherError = currentWeatherResult?.error ?? ''
+  const weatherLoading = !currentWeatherResult
+  const selectedTown = locationLabel.replace(/,\s*Myanmar$/i, '').trim()
+  const normalizeTown = (town: string) => town.trim().toLocaleLowerCase().replace(/\s+/g, ' ')
+  const townProjects = projects.filter((project) =>
+    project.status.toLocaleLowerCase() === 'active' &&
+    project.town &&
+    normalizeTown(project.town) === normalizeTown(selectedTown)
+  )
+  const currentCondition = weather?.current
+  const updatedWeatherTime = weather
+    ? new Date(weather.current.time).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : ''
 
   return (
     <main className="community-map-page">
@@ -178,13 +294,16 @@ export default function CommunityMapPage() {
         <header className="community-map-heading">
           <div>
             <Link className="community-map-back" to="/"><ArrowLeft size={15} /> YouthAct home</Link>
-            <p className="eyebrow">Community climate observations</p>
-            <h1>Local reports.<br /><em>Shared evidence.</em></h1>
-            <p className="community-map-intro">Explore approved environmental observations submitted by community members. Personal details and photographs are not displayed.</p>
+            <p className="eyebrow">Community + weather dashboard</p>
+            <h1>One map.<br /><em>Local climate.</em></h1>
+            <p className="community-map-intro">Explore approved community observations alongside live weather conditions. Click anywhere on the map to check the weather at that location.</p>
           </div>
-          <button className="community-refresh" type="button" onClick={() => void refreshReports()} disabled={loading}>
-            <RefreshCw size={16} className={loading ? 'community-refresh-spin' : ''} /> Refresh
-          </button>
+          <div className="community-map-heading-actions">
+            <Link className="community-location-link" to="/yangon-weather"><MapPin size={15} /> Choose a location</Link>
+            <button className="community-refresh" type="button" onClick={() => void refreshReports()} disabled={loading}>
+              <RefreshCw size={16} className={loading ? 'community-refresh-spin' : ''} /> Refresh reports
+            </button>
+          </div>
         </header>
 
         <section className="community-filters" aria-label="Filter community reports">
@@ -197,9 +316,10 @@ export default function CommunityMapPage() {
 
         {error && <div className="community-map-error" role="alert">{error}<button type="button" onClick={() => void refreshReports()}>Try again</button></div>}
 
-        <section className="community-map-layout" aria-label="Community climate report map">
+        <section className="community-map-layout community-dashboard-layout" aria-label="Community reports and local weather">
           <div className="community-map-frame">
             <MapContainer center={DEFAULT_CENTER} zoom={6} scrollWheelZoom className="community-leaflet-map">
+              <MapLocationPicker onSelect={selectWeatherLocation} />
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -234,11 +354,83 @@ export default function CommunityMapPage() {
                   </Popup>
                 </CircleMarker>
               ))}
+              <Marker position={[latitude, longitude]} icon={weatherPin}>
+                <Popup>
+                  <div className="community-report-popup">
+                    <strong>Weather location</strong>
+                    <span>{locationLabel}</span>
+                    <span>{latitude.toFixed(4)}°, {longitude.toFixed(4)}°</span>
+                    <span>Click another point on the map to update local conditions.</span>
+                  </div>
+                </Popup>
+              </Marker>
             </MapContainer>
-            <div className="community-map-attribution">Report locations are rounded to approximately 100 m for privacy.</div>
+            <div className="community-map-hints">
+              <span><MapPin size={13} /> Weather pin · click map to move</span>
+              <span>Report locations rounded for privacy</span>
+            </div>
           </div>
 
           <aside className="community-map-sidebar">
+            <section className="community-weather-card" aria-label="Current local weather">
+              <div className="community-weather-heading">
+                <div>
+                  <p className="community-kicker">LOCAL WEATHER</p>
+                  <h2>{locationLabel}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="community-weather-refresh"
+                  aria-label="Refresh local weather"
+                  title="Refresh local weather"
+                  onClick={() => {
+                    setWeatherReloadKey((key) => key + 1)
+                  }}
+                  disabled={weatherLoading}
+                >
+                  <RefreshCw size={15} className={weatherLoading ? 'community-refresh-spin' : ''} />
+                </button>
+              </div>
+              {weatherError ? (
+                <div className="community-weather-error" role="alert">
+                  <p>{weatherError}</p>
+                  <button type="button" onClick={() => setWeatherReloadKey((key) => key + 1)}>Try again</button>
+                </div>
+              ) : weatherLoading && !currentCondition ? (
+                <p className="community-weather-loading" role="status">Loading local weather…</p>
+              ) : currentCondition ? (
+                <>
+                  <div className="community-weather-current">
+                    <span className="community-weather-icon" aria-hidden="true">{getWeatherIcon(currentCondition.icon)}</span>
+                    <div>
+                      <strong>{Math.round(currentCondition.temperature)}°</strong>
+                      <span>{formatWeatherDescription(currentCondition.description)}</span>
+                      <small>Feels like {Math.round(currentCondition.feelsLike)}°C</small>
+                    </div>
+                  </div>
+                  <div className="community-weather-metrics">
+                    <span><Droplets size={14} /> Humidity <strong>{currentCondition.humidity}%</strong></span>
+                    <span><CloudSun size={14} /> Rain <strong>{currentCondition.precipitation} mm</strong></span>
+                    <span><Wind size={14} /> Wind <strong>{Math.round(currentCondition.windSpeed)} m/s</strong></span>
+                  </div>
+                  <p className="community-weather-updated" aria-live="polite">
+                    <Thermometer size={12} /> OpenWeather · Updated {updatedWeatherTime}
+                  </p>
+                  {weather?.daily.length ? (
+                    <div className="community-weather-forecast" aria-label="Three day forecast">
+                      {weather.daily.map((forecast, index) => (
+                        <div key={forecast.date}>
+                          <strong>{formatForecastDay(forecast.date, index)}</strong>
+                          <span aria-hidden="true">{getWeatherIcon(forecast.icon)}</span>
+                          <small>{Math.round(forecast.maxTemperature)}° / {Math.round(forecast.minTemperature)}°</small>
+                          <small><Droplets size={11} /> {forecast.precipitationProbability}%</small>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </section>
             <div className="community-sidebar-heading"><div><p className="community-kicker">VISIBLE REPORTS</p><h2>{filteredReports.length}</h2></div><span>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Waiting for data'}</span></div>
             <div className="community-legend">
               <h3>Map legend</h3>
@@ -260,6 +452,41 @@ export default function CommunityMapPage() {
               {filteredReports.length > 30 && <p className="community-empty">Showing 30 of {filteredReports.length} reports; all reports remain visible on the map.</p>}
             </div>
           </aside>
+        </section>
+        <section className="community-town-projects" aria-labelledby="community-town-projects-title">
+          <div className="community-town-projects-heading">
+            <div>
+              <p className="community-kicker">YOUTHACT PROJECTS</p>
+              <h2 id="community-town-projects-title">Work happening in {selectedTown}</h2>
+              <p>Explore active projects connected to this town.</p>
+            </div>
+            <span>{townProjects.length} {townProjects.length === 1 ? 'project' : 'projects'}</span>
+          </div>
+          {projectsLoading ? (
+            <p className="community-projects-empty" role="status">Loading projects…</p>
+          ) : projectsError ? (
+            <p className="community-projects-empty" role="alert">{projectsError}</p>
+          ) : townProjects.length ? (
+            <div className="community-town-project-grid">
+              {townProjects.map((project) => (
+                <article className="community-town-project" key={project.id}>
+                  <img src={project.images?.[0] || project.image} alt="" loading="lazy" />
+                  <div>
+                    <span>{project.category}</span>
+                    <h3>{project.title}</h3>
+                    <p>{project.description}</p>
+                    <Link to={`/project/${project.id}/projectdetailpage`}>Explore project <span aria-hidden="true">↗</span></Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="community-projects-empty">
+              {selectedTown.toLocaleLowerCase() === 'selected map location'
+                ? 'Choose a town from “Choose a location” to see projects assigned to it.'
+                : `No active projects are assigned to ${selectedTown} yet.`}
+            </p>
+          )}
         </section>
         <p className="community-map-footnote">Reports are reviewed before publication. Risk zones are derived only from approved observations and should be interpreted with local knowledge and supporting GIS assessment.</p>
       </div>

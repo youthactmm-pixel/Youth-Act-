@@ -2,9 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react'
 import {
   createCard,
   fetchCards,
+  fetchTowns,
   updateCard,
   type CardCreateInput,
   type CardModel,
+  type TownModel,
 } from '../services/Api'
 import {
   Card,
@@ -36,6 +38,7 @@ const emptyForm: CardCreateInput = {
   description: '',
   category: 'program',
   status: 'active',
+  town: '',
 }
 
 const CARDS_PER_PAGE = 6
@@ -70,9 +73,20 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [cards, setCards] = useState<CardModel[]>([])
+  const [towns, setTowns] = useState<TownModel[]>([])
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [processingImages, setProcessingImages] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [townLoadError, setTownLoadError] = useState('')
+
+  useEffect(() => {
+    fetchTowns()
+      .then(setTowns)
+      .catch((error: unknown) => {
+        console.error('Unable to load towns for project assignment:', error)
+        setTownLoadError(error instanceof Error ? error.message : 'Unable to load towns.')
+      })
+  }, [])
 
   const loadCards = async () => {
     try {
@@ -101,12 +115,13 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
       description: form.description.trim(),
       category: form.category.trim(),
       status: form.status.trim(),
+      town: form.town?.trim() ?? '',
       image: form.images?.[0] ?? form.image,
       images: form.images?.length ? form.images : [form.image],
     }
 
-    if (!payload.title || !payload.description || !payload.category || !payload.status || !payload.images[0]) {
-      setMessage('Please complete every card field and attach at least one image.')
+    if (!payload.title || !payload.description || !payload.category || !payload.status || !payload.town || !payload.images[0]) {
+      setMessage('Please complete every card field, select a town, and attach at least one image.')
       return
     }
 
@@ -146,6 +161,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
       description: card.description,
       category: card.category,
       status: card.status,
+      town: card.town ?? '',
     })
     setMessage('Editing card: ' + card.title)
   }
@@ -211,6 +227,20 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
                 <option value="draft">draft</option>
                 <option value="archived">archived</option>
               </select>
+            </label>
+
+            <label className="field">
+              <span>Town</span>
+              <select
+                value={form.town ?? ''}
+                onChange={(event) => setForm({ ...form, town: event.target.value })}
+                required
+              >
+                <option value="">Select project town</option>
+                {towns.map((town) => <option key={town.id} value={town.town}>{town.town}</option>)}
+              </select>
+              {townLoadError && <small className="field-error" role="alert">{townLoadError}</small>}
+              {!townLoadError && towns.length === 0 && <small>Add a town before assigning a project.</small>}
             </label>
           </div>
 
