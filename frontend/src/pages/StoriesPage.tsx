@@ -76,20 +76,22 @@ export default function StoriesPage() {
                       loading="lazy"
                     />
                   )}
-                  <div className="stories-report-card-meta">
-                    <span className={`stories-report-severity stories-report-severity-${report.severity}`}>
-                      {report.severity}
-                    </span>
-                    {report.verified && <span className="verified-label">Verified</span>}
+                  <div className="stories-report-card-content">
+                    <div className="stories-report-card-meta">
+                      <span className={`stories-report-severity stories-report-severity-${report.severity}`}>
+                        {report.severity}
+                      </span>
+                      {report.verified && <span className="verified-label">Verified</span>}
+                    </div>
+                    <p className="stories-report-location">
+                      {report.township} · {new Date(report.observationDate).toLocaleDateString()}
+                    </p>
+                    <h3>{report.issueType}</h3>
+                    <p className={`stories-report-description${report.description ? '' : ' is-empty'}`}>
+                      {report.description || 'No public description was provided.'}
+                    </p>
+                    <span className="stories-report-read-more">View report details →</span>
                   </div>
-                  <p className="stories-report-location">
-                    {report.township} · {new Date(report.observationDate).toLocaleDateString()}
-                  </p>
-                  <h3>{report.issueType}</h3>
-                  <p className={`stories-report-description${report.description ? '' : ' is-empty'}`}>
-                    {report.description || 'No public description was provided.'}
-                  </p>
-                  <span className="stories-report-read-more">View report details →</span>
                 </Link>
               ))}
             </div>

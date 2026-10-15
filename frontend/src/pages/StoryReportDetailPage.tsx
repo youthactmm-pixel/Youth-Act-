@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft, CalendarDays, MapPin, ShieldCheck } from 'lucide-react'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 import {
@@ -68,60 +69,75 @@ export default function StoryReportDetailPage() {
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
       <main>
         <section className="story-report-detail shell">
-          <Link className="project-back-link" to="/stories">← Back to stories</Link>
+          <Link className="story-report-back" to="/stories"><ArrowLeft size={16} /> All stories</Link>
           {loading ? (
-            <p className="stories-reports-feedback" role="status">Loading report details…</p>
+            <div className="story-report-state" role="status">
+              <span className="eyebrow">Community report</span>
+              <p>Loading observation details…</p>
+            </div>
           ) : error ? (
-            <div className="story-report-unavailable" role="alert">
-              <p className="eyebrow">Report unavailable</p>
+            <div className="story-report-state story-report-unavailable" role="alert">
+              <span className="eyebrow">Report unavailable</span>
               <h1>{error}</h1>
-              <Link className="button button-dark" to="/stories">Back to stories</Link>
+              <Link className="story-report-back" to="/stories"><ArrowLeft size={16} /> Back to stories</Link>
             </div>
           ) : report ? (
             <article className="story-report-detail-card">
-              <ReportPhoto key={report.id} report={report} />
-              <div className="story-report-detail-heading">
-                <div>
-                  <p className="eyebrow">Community climate report</p>
-                  <h1>{report.issueType}</h1>
-                  <p className="story-report-detail-location">{report.township}</p>
-                </div>
-                <div className="story-report-card-meta">
-                  <span className={`stories-report-severity stories-report-severity-${report.severity}`}>
-                    {report.severity}
-                  </span>
-                  {report.verified && <span className="verified-label">Verified</span>}
-                </div>
+              <div className="story-report-detail-cover">
+                <ReportPhoto key={report.id} report={report} />
+                <span className="story-report-cover-label">Community field report</span>
               </div>
-              <p className="story-report-detail-description">
-                {report.description || 'No public description was provided.'}
-              </p>
-              <dl className="story-report-detail-facts">
-                <div>
-                  <dt>Observation date</dt>
-                  <dd>{new Date(report.observationDate).toLocaleDateString()}</dd>
+              <div className="story-report-detail-body">
+                <div className="story-report-detail-heading">
+                  <div className="story-report-title-group">
+                    <p className="eyebrow">Community climate report</p>
+                    <h1>{report.issueType}</h1>
+                    <p className="story-report-detail-location"><MapPin size={15} /> {report.township}</p>
+                  </div>
+                  <div className="story-report-detail-badges">
+                    <span className={`stories-report-severity stories-report-severity-${report.severity}`}>
+                      {report.severity}
+                    </span>
+                    {report.verified && <span className="story-report-verified"><ShieldCheck size={14} /> Verified</span>}
+                  </div>
                 </div>
-                <div>
-                  <dt>Township</dt>
-                  <dd>{report.township}</dd>
+                <div className="story-report-detail-content">
+                  <section className="story-report-description-panel">
+                    <p className="story-report-section-label">What was observed</p>
+                    <p className="story-report-detail-description">
+                      {report.description || 'No public description was provided.'}
+                    </p>
+                  </section>
+                  <section className="story-report-facts-panel" aria-label="Report information">
+                    <p className="story-report-section-label">Report information</p>
+                    <dl className="story-report-detail-facts">
+                      <div>
+                        <dt><CalendarDays size={14} /> Observation date</dt>
+                        <dd>{new Date(report.observationDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</dd>
+                      </div>
+                      <div>
+                        <dt><MapPin size={14} /> Location</dt>
+                        <dd>{report.township}</dd>
+                      </div>
+                      <div>
+                        <dt>Severity</dt>
+                        <dd className="story-report-severity-value">{report.severity}</dd>
+                      </div>
+                      <div>
+                        <dt>Approximate coordinates</dt>
+                        <dd>{report.latitude.toFixed(3)}, {report.longitude.toFixed(3)}</dd>
+                      </div>
+                      <div>
+                        <dt><ShieldCheck size={14} /> Review status</dt>
+                        <dd>{report.verified ? 'Verified by YouthAct' : 'Approved for public viewing'}</dd>
+                      </div>
+                    </dl>
+                  </section>
                 </div>
-                <div>
-                  <dt>Severity</dt>
-                  <dd>{report.severity}</dd>
-                </div>
-                <div>
-                  <dt>Approximate coordinates</dt>
-                  <dd>{report.latitude.toFixed(3)}, {report.longitude.toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>Review status</dt>
-                  <dd>{report.verified ? 'Verified by YouthAct' : 'Approved for public viewing'}</dd>
-                </div>
-              </dl>
-              <p className="story-report-privacy-note">
-                This page shows public-safe information reviewed for sharing. Reporter names,
-                contact details, and private Kobo submission data are not displayed.
-              </p>
+                <p className="story-report-privacy-note">
+                  Reporter names, contact details, and private Kobo submission data are not displayed.
+                </p>
+              </div>
             </article>
           ) : null}
         </section>
