@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { ArrowLeft, ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { loginAdmin } from '../services/auth'
 
 type AdminLoginPageProps = {
@@ -34,51 +35,89 @@ export default function AdminLoginPage({ onSuccess, onBack }: AdminLoginPageProp
   }
 
   return (
-    <section className="admin-page fade-section">
-      <div className="admin-page-top shell">
-        <div>
-          <p className="eyebrow">YouthAct Dashboard</p>
-          <h1>Admin login</h1>
-        </div>
-        <button className="button button-dark" type="button" onClick={onBack}>
-          Back to home <span>↗</span>
-        </button>
-      </div>
-
-      <section className="card-form-section shell">
-        <form className="card-form" onSubmit={handleSubmit}>
-          <label className="field field-full">
-            <span>Username</span>
-            <input
-              type="text"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="admin"
-              autoComplete="username"
-              required
-            />
-          </label>
-
-          <label className="field field-full">
-            <span>Password</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter admin password"
-              autoComplete="current-password"
-              required
-            />
-          </label>
-
-          <div className="form-actions">
-            <button className="button button-dark" type="submit" disabled={submitting}>
-              {submitting ? 'Signing in...' : 'Login'} <span>↗</span>
-            </button>
-            {message && <span className="form-message">{message}</span>}
+    <main className="admin-login">
+      <div className="admin-login-layout">
+        <section className="admin-login-story" aria-label="About YouthAct">
+          <div className="admin-login-brand">
+            <span className="admin-login-brand-mark">Y</span>
+            <span>YouthAct</span>
           </div>
-        </form>
-      </section>
-    </section>
+          <div className="admin-login-story-copy">
+            <p className="admin-login-overline">Young people. Lasting change.</p>
+            <h1>Make a difference, every day.</h1>
+            <p>
+              A space for the people building stronger, more resilient
+              communities across Myanmar.
+            </p>
+          </div>
+          <div className="admin-login-story-footer">
+            <span className="admin-login-story-line" />
+            <span>Empowering youth. Strengthening communities.</span>
+          </div>
+        </section>
+
+        <section className="admin-login-panel" aria-labelledby="admin-login-title">
+          <button className="admin-login-back" type="button" onClick={onBack}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            <span>Back to home</span>
+          </button>
+
+          <div className="admin-login-content">
+            <div className="admin-login-heading">
+              <span className="admin-login-icon">
+                <LockKeyhole size={20} aria-hidden="true" />
+              </span>
+              <p className="admin-login-overline">YouthAct administration</p>
+              <h2 id="admin-login-title">Welcome back</h2>
+              <p>Sign in to access your dashboard and manage your work.</p>
+            </div>
+
+            <form className="admin-login-form" onSubmit={handleSubmit}>
+              <label className="admin-login-field">
+                <span>Username</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="Enter your username"
+                  autoComplete="username"
+                  required
+                />
+              </label>
+
+              <label className="admin-login-field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+
+              {message && (
+                <p className="admin-login-message" role="alert">
+                  {message}
+                </p>
+              )}
+
+              <button className="admin-login-submit" type="submit" disabled={submitting}>
+                <span>{submitting ? 'Signing in...' : 'Sign in to dashboard'}</span>
+                <ArrowRight size={18} aria-hidden="true" />
+              </button>
+            </form>
+
+            <div className="admin-login-security">
+              <ShieldCheck size={17} aria-hidden="true" />
+              <span>Secure access for authorized team members</span>
+            </div>
+          </div>
+
+          <p className="admin-login-copyright">© YouthAct · Together for a better future</p>
+        </section>
+      </div>
+    </main>
   )
 }

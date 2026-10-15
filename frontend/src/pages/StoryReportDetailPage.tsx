@@ -91,7 +91,6 @@ export default function StoryReportDetailPage() {
                 <div className="story-report-detail-heading">
                   <div className="story-report-title-group">
                     <p className="eyebrow">Community climate report</p>
-                    <h1>{report.issueType}</h1>
                     <p className="story-report-detail-location"><MapPin size={15} /> {report.township}</p>
                   </div>
                   <div className="story-report-detail-badges">

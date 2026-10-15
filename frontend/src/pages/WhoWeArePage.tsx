@@ -134,12 +134,6 @@ export default function WhoWeArePage() {
             </div>
             <span className="who-art-caption">Ideas grow when we grow them together.</span>
           </div>
-          <nav className="who-page-nav" aria-label="Who we are pages">
-            <span>Who we are</span>
-            <Link className={pageKey === 'mission' ? 'active' : ''} to="/mission">Mission & values</Link>
-            <Link className={pageKey === 'leadership' ? 'active' : ''} to="/leadership">Leadership</Link>
-            <Link className={pageKey === 'partnerships' ? 'active' : ''} to="/partnerships">Partnerships</Link>
-          </nav>
         </section>
 
         {pageKey === 'mission' && (
