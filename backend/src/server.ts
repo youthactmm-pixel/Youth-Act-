@@ -21,6 +21,8 @@ const DEFAULT_ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin'
 const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin123'
 const adminSessions = new Map<string, { username: string; createdAt: number }>()
 const KOBO_API_URL = (process.env.KOBO_API_URL ?? 'https://kf.kobotoolbox.org').replace(/\/+$/, '')
+const KOBO_DETAIL_ASSET_UID = (process.env.KOBO_DETAIL_ASSET_UID ?? 'asVctXHHGzNBbQ8smxu4Ro').trim()
+const LEGACY_KOBO_DETAIL_ASSET_UID = '14afc072f186fd92a83fce2d2161c98897244df1'
 let isKoboSyncRunning = false
 
 app.use(cors({ origin: true, credentials: true }))
@@ -201,6 +203,8 @@ function flattenKoboRecord(record: Record<string, unknown>) {
     if (Array.isArray(value)) {
       if (value.every((part) => typeof part === 'number')) {
         values.set(normalizeKoboKey(path), value)
+      } else if (value.every((part) => ['string', 'number', 'boolean'].includes(typeof part))) {
+        values.set(normalizeKoboKey(path), value)
       } else {
         value.forEach((part, index) => visit(part, `${path}${index}`))
       }
@@ -252,7 +256,14 @@ function normalizeKoboSeverity(value: unknown): 'low' | 'moderate' | 'high' | 'c
 function normalizeKoboReport(record: Record<string, unknown>) {
   const values = flattenKoboRecord(record)
   const coordinate =
-    parseKoboCoordinate(pickKoboValue(values, ['_geolocation', 'geolocation', 'gps', 'geopoint', 'location'])) ??
+    parseKoboCoordinate(pickKoboValue(values, [
+      '_geolocation',
+      'geolocation',
+      'gps',
+      'geopoint',
+      'location',
+      'Q6_Record_the_locat_of_the_issue_',
+    ])) ??
     (() => {
       const latitude = Number(pickKoboValue(values, ['latitude', 'lat']))
       const longitude = Number(pickKoboValue(values, ['longitude', 'lon', 'lng']))
@@ -261,27 +272,138 @@ function normalizeKoboReport(record: Record<string, unknown>) {
 
   if (!coordinate || Math.abs(coordinate[0]) > 90 || Math.abs(coordinate[1]) > 180) return null
 
-  const issueType = String(pickKoboValue(values, ['issue_type', 'issue', 'environmental_issue', 'climate_hazard', 'hazard', 'category']) ?? '').trim()
+  const issueType = String(pickKoboValue(values, [
+    'issue_type',
+    'issue',
+    'environmental_issue',
+    'climate_hazard',
+    'hazard',
+    'category',
+    'Q8_What_environment_d_you_notice_',
+  ]) ?? '').trim()
   if (!issueType) return null
-  const observedAt = pickKoboValue(values, ['observation_date', 'date_observed', 'date', '_submission_time'])
+  const observedAt = pickKoboValue(values, [
+    'observation_date',
+    'date_observed',
+    'date',
+    '_submission_time',
+    'Observation_date_',
+  ])
   const parsedDate = observedAt ? new Date(String(observedAt)) : new Date()
   const id = String(record._uuid ?? record._id ?? record.id ?? '').trim()
   if (!id) return null
 
   return {
     externalId: id,
-    township: String(pickKoboValue(values, ['township', 'town', 'district', 'area']) ?? 'Unspecified').trim().slice(0, 120) || 'Unspecified',
+    township: String(pickKoboValue(values, ['township', 'town', 'district', 'area', 'Township_']) ?? 'Unspecified').trim().slice(0, 120) || 'Unspecified',
     issueType: issueType.slice(0, 120),
     observationDate: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
     latitude: coordinate[0],
     longitude: coordinate[1],
-    severity: normalizeKoboSeverity(pickKoboValue(values, ['severity', 'impact_level', 'risk_level'])),
-    sourceDescription: String(pickKoboValue(values, ['approved_description', 'description', 'observation', 'details', 'notes']) ?? '').trim().slice(0, 2000),
+    severity: normalizeKoboSeverity(pickKoboValue(values, [
+      'severity',
+      'impact_level',
+      'risk_level',
+      'How_severe_does_the_sue_appear_',
+    ])),
+    sourceDescription: String(pickKoboValue(values, [
+      'approved_description',
+      'description',
+      'observation',
+      'details',
+      'notes',
+      'Q9_Briefly_describe_blem_optional_',
+    ]) ?? '').trim().slice(0, 2000),
   }
 }
 
+function getKoboLabel(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (!Array.isArray(value)) return ''
+  const directLabel = value.find((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+  if (directLabel) return directLabel.trim()
+
+  const labels = value.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+  )
+  const preferred = labels.find((label) => String(label.lang ?? '').toLowerCase().startsWith('en'))
+  const text = preferred?.text ?? labels[0]?.text
+  return typeof text === 'string' ? text.trim() : ''
+}
+
+function getKoboFormQuestions(content: unknown): Array<{ name: string; label: string; type: string; required: boolean }> {
+  const questions: Array<{ name: string; label: string; type: string; required: boolean }> = []
+  const visit = (nodes: unknown[]) => {
+    for (const node of nodes) {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) continue
+      const item = node as Record<string, unknown>
+      const type = typeof item.type === 'string' ? item.type : ''
+      const name = typeof item.name === 'string' ? item.name.trim() : ''
+      const label = getKoboLabel(item.label)
+      if (name && label && !['survey', 'group', 'repeat', 'begin_group', 'end_group', 'begin_repeat', 'end_repeat'].includes(type.toLowerCase())) {
+        questions.push({
+          name,
+          label,
+          type,
+          required: item.required === true || item.required === 'yes',
+        })
+      }
+      if (Array.isArray(item.children)) visit(item.children)
+      if (Array.isArray(item.survey)) visit(item.survey)
+    }
+  }
+
+  if (Array.isArray(content)) visit(content)
+  else if (content && typeof content === 'object' && !Array.isArray(content)) {
+    const formContent = content as Record<string, unknown>
+    if (Array.isArray(formContent.survey)) visit(formContent.survey)
+  }
+  return questions
+}
+
+function serializeKoboForm(asset: Record<string, unknown>) {
+  const settings = asset.settings && typeof asset.settings === 'object'
+    ? asset.settings as Record<string, unknown>
+    : {}
+  const deploymentLinks = asset['deployment__links'] && typeof asset['deployment__links'] === 'object'
+    ? asset['deployment__links'] as Record<string, unknown>
+    : {}
+  const deploymentIdentifier = typeof asset['deployment__identifier'] === 'string'
+    ? asset['deployment__identifier']
+    : ''
+  const active = asset['deployment__active'] === true
+  let participationUrl: string | null = null
+  if (typeof deploymentLinks.url === 'string') {
+    try {
+      const parsedUrl = new URL(deploymentLinks.url)
+      if (parsedUrl.protocol === 'https:') participationUrl = parsedUrl.toString()
+    } catch {
+      console.warn('Ignoring invalid Kobo participation URL.')
+      participationUrl = null
+    }
+  } else if (active && deploymentIdentifier) {
+    participationUrl = `https://ee.kobotoolbox.org/x/${encodeURIComponent(deploymentIdentifier)}`
+  }
+
+  return {
+    id: KOBO_DETAIL_ASSET_UID,
+    title: typeof asset.name === 'string' && asset.name.trim() ? asset.name.trim() : 'Community form',
+    description: typeof settings.description === 'string' ? settings.description.trim() : '',
+    questions: getKoboFormQuestions(asset.content),
+    participationUrl,
+    active,
+  }
+}
+
+function resolveKoboAssetUid(requestedUid: string) {
+  return requestedUid === LEGACY_KOBO_DETAIL_ASSET_UID
+    ? KOBO_DETAIL_ASSET_UID
+    : requestedUid
+}
+
 async function syncKoboReports() {
-  const assetUid = process.env.KOBO_ASSET_UID?.trim()
+  const assetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
   const apiToken = process.env.KOBO_API_TOKEN?.trim()
   if (!assetUid || !apiToken) return { imported: 0, configured: false }
   if (isKoboSyncRunning) return { imported: 0, configured: true }
@@ -459,6 +581,57 @@ app.post('/createCard', async (_request, response) => {
 
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: 'youthact-api' })
+})
+
+app.get('/api/kobo/forms/:assetUid', async (request, response) => {
+  const assetUid = resolveKoboAssetUid(request.params.assetUid)
+  if (assetUid !== KOBO_DETAIL_ASSET_UID) {
+    response.status(404).json({ message: 'Kobo form not found.' })
+    return
+  }
+
+  const apiToken = process.env.KOBO_API_TOKEN?.trim()
+  if (!apiToken) {
+    response.status(503).json({ message: 'Kobo form access is not configured on the server.' })
+    return
+  }
+
+  try {
+    if (new URL(KOBO_API_URL).protocol !== 'https:') {
+      throw new Error('KOBO_API_URL must use HTTPS to protect the API token')
+    }
+    const assetUrl = `${KOBO_API_URL}/api/v2/assets/${encodeURIComponent(assetUid)}/`
+    const assetResponse = await axios.get<Record<string, unknown>>(assetUrl, {
+      headers: { Authorization: `Token ${apiToken}` },
+      timeout: 20000,
+      maxRedirects: 0,
+    })
+    response.json(serializeKoboForm(assetResponse.data))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load Kobo form details'
+    console.error('Kobo form detail request failed:', errorMessage)
+    response.status(502).json({ message: 'Unable to load Kobo form details right now.' })
+  }
+})
+
+app.get('/api/kobo/forms/:assetUid/submissions', async (request, response) => {
+  const submissionsAssetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
+  const assetUid = resolveKoboAssetUid(request.params.assetUid)
+  if (assetUid !== submissionsAssetUid) {
+    response.status(404).json({ message: 'Kobo submissions are not configured for this form.' })
+    return
+  }
+
+  try {
+    const reports = await ClimateReport.find({ status: 'approved' })
+      .sort({ observationDate: -1 })
+      .limit(500)
+      .lean()
+    response.json(reports.map((report) => serializeClimateReport(report, true)))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load Kobo form submissions'
+    response.status(500).json({ message: 'Unable to load Kobo form submissions.', error: errorMessage })
+  }
 })
 
 app.get('/api/climate/reports', async (_request, response) => {

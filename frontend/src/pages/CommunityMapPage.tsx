@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CircleMarker, GeoJSON, MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
 import { divIcon, type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
-import { ArrowLeft, CalendarDays, CloudSun, Droplets, MapPin, RefreshCw, Thermometer, Wind } from 'lucide-react'
+import { ArrowLeft, CalendarDays, CloudSun, Droplets, FileText, MapPin, RefreshCw, Thermometer, Wind } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import TopNavbar from '@/components/ui/topnavbar'
 import { Calendar } from '@/components/ui/calendar'
@@ -299,6 +299,9 @@ export default function CommunityMapPage() {
             <p className="community-map-intro">Explore approved community observations alongside live weather conditions. Click anywhere on the map to check the weather at that location.</p>
           </div>
           <div className="community-map-heading-actions">
+            <Link className="community-location-link" to="/kobo-form/asVctXHHGzNBbQ8smxu4Ro">
+              <FileText size={15} /> Share an observation
+            </Link>
             <Link className="community-location-link" to="/yangon-weather"><MapPin size={15} /> Choose a location</Link>
             <button className="community-refresh" type="button" onClick={() => void refreshReports()} disabled={loading}>
               <RefreshCw size={16} className={loading ? 'community-refresh-spin' : ''} /> Refresh reports

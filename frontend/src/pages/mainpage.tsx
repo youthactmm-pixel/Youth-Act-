@@ -180,7 +180,7 @@ export function HomePage() {
           <button className="mobile-nav-cta" type="button" onClick={() => {
             navigate('/admin')
             setMobileMenuOpen(false)
-          }}>Create card <span>↗</span></button>
+          }}>Login</button>
         </div>
       </aside>
 

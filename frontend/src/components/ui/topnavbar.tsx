@@ -96,7 +96,7 @@
           <Link to="/stories">Stories</Link>
           <Link to="/community-map">Community + weather</Link>
         </div>
-        <button className="nav-cta" type="button" onClick={() => navigate('/admin')}>Create card <span>↗</span></button>
+        <button className="nav-cta" type="button" onClick={() => navigate('/admin')}>Login <span>↗</span></button>
       </nav>
 )
        }

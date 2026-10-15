@@ -40,6 +40,22 @@ export type StoryModel = {
 
 export type StoryCreateInput = Omit<StoryModel, 'id'>
 
+export type KoboFormQuestion = {
+  name: string
+  label: string
+  type: string
+  required: boolean
+}
+
+export type KoboFormDetails = {
+  id: string
+  title: string
+  description: string
+  questions: KoboFormQuestion[]
+  participationUrl: string | null
+  active: boolean
+}
+
 export type ClimateReport = {
   id: string
   township: string
@@ -337,6 +353,16 @@ export async function fetchProjectById(
   })
 }
 
+export async function fetchKoboFormDetails(assetUid: string, signal?: AbortSignal): Promise<KoboFormDetails> {
+  const response = await fetch(`${API_BASE_URL}/api/kobo/forms/${encodeURIComponent(assetUid)}`, { signal })
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response, 'Unable to load Kobo form details.'))
+  }
+
+  return response.json() as Promise<KoboFormDetails>
+}
+
 export async function createCard(
   card: CardCreateInput
 ): Promise<CardModel> {
@@ -434,10 +460,19 @@ async function readApiError(response: Response, fallback: string) {
   return body?.message ?? body?.error ?? fallback
 }
 
-export async function fetchClimateReports(): Promise<ClimateReportsResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/climate/reports`)
+export async function fetchClimateReports(signal?: AbortSignal): Promise<ClimateReportsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/climate/reports`, { signal })
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to load community reports.'))
   return response.json() as Promise<ClimateReportsResponse>
+}
+
+export async function fetchKoboFormSubmissions(assetUid: string, signal?: AbortSignal): Promise<ClimateReport[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/kobo/forms/${encodeURIComponent(assetUid)}/submissions`,
+    { signal }
+  )
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to load Kobo form submissions.'))
+  return response.json() as Promise<ClimateReport[]>
 }
 
 export async function fetchClimateReportsForReview(): Promise<ClimateReport[]> {

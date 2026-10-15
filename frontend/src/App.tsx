@@ -22,6 +22,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import CreateTownPage from './pages/CreateTownPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import CommunityMapPage from './pages/CommunityMapPage';
+import KoboFormDetailPage from './pages/KoboFormDetailPage';
 import ClimateReportReviewPage from './pages/ClimateReportReviewPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminHomePage from './pages/AdminHomePage';
@@ -233,6 +234,7 @@ function App() {
             <Route path="/programs" element={<ProgramsPage />} />
             <Route path="/stories" element={<StoriesPage />} />
             <Route path="/community-map" element={<CommunityMapPage />} />
+            <Route path="/kobo-form/:id" element={<KoboFormDetailPage />} />
 
             <Route
               path="/project/:id/projectdetailpage"
