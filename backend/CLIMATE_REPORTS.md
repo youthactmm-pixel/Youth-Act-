@@ -6,7 +6,8 @@ Configure these variables in the **backend** deployment environment (never in Vi
 
 - `KOBO_API_TOKEN`: private Kobo API token with read access to the form.
 - `KOBO_ASSET_UID`: optional UID of the Kobo form asset; defaults to `asVctXHHGzNBbQ8smxu4Ro`.
-- `KOBO_API_URL`: optional API host; defaults to `https://kf.kobotoolbox.org`.
+- `KOBO_BASE_URL`: optional Kobo API host; defaults to `https://kf.kobotoolbox.org`.
+  `KOBO_API_URL` is also accepted as a legacy alias.
 
 The backend performs an initial sync and repeats every 60 seconds. The authenticated
 `POST /api/admin/climate/sync` endpoint is also available for an immediate sync.
@@ -30,7 +31,7 @@ loads the form title, description, and question labels from Kobo. The backend
 proxies this metadata through `GET /api/kobo/forms/:assetUid`; the Kobo token is
 never sent to the browser. `KOBO_DETAIL_ASSET_UID` optionally overrides the form
 UID (the page link and the default UID use `asVctXHHGzNBbQ8smxu4Ro`). The backend uses
-`KOBO_API_TOKEN` and `KOBO_API_URL` for the request. A participation link is shown
+`KOBO_API_TOKEN` and `KOBO_BASE_URL` for the request. A participation link is shown
 only when the form is deployed and Kobo provides a deployment URL or identifier.
 Requests using the previous detail-page UID `14afc072f186fd92a83fce2d2161c98897244df1`
 are mapped to the current form for backwards compatibility.

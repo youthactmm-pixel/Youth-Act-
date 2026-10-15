@@ -20,7 +20,11 @@ const port = process.env.PORT || 4000
 const DEFAULT_ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin'
 const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin123'
 const adminSessions = new Map<string, { username: string; createdAt: number }>()
-const KOBO_API_URL = (process.env.KOBO_API_URL ?? 'https://kf.kobotoolbox.org').replace(/\/+$/, '')
+const KOBO_API_URL = (
+  process.env.KOBO_BASE_URL ??
+  process.env.KOBO_API_URL ??
+  'https://kf.kobotoolbox.org'
+).replace(/\/+$/, '')
 const KOBO_DETAIL_ASSET_UID = (process.env.KOBO_DETAIL_ASSET_UID ?? 'asVctXHHGzNBbQ8smxu4Ro').trim()
 const LEGACY_KOBO_DETAIL_ASSET_UID = '14afc072f186fd92a83fce2d2161c98897244df1'
 let isKoboSyncRunning = false
