@@ -7,7 +7,7 @@ import 'leaflet/dist/leaflet.css'
 import TopNavbar from '@/components/ui/topnavbar'
 import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
-import { fetchCards, fetchClimateReports, fetchWeatherStatus, type CardModel, type ClimateReport, type ClimateReportsResponse, type WeatherStatusResponse } from '@/services/Api'
+import { fetchCards, fetchClimateReports, fetchWeatherStatus, getPublicClimateReportImageUrl, type CardModel, type ClimateReport, type ClimateReportsResponse, type WeatherStatusResponse } from '@/services/Api'
 
 const DEFAULT_CENTER: LatLngExpression = [19, 96]
 const DEFAULT_WEATHER_LOCATION = [16.8661, 96.1951] as const
@@ -294,7 +294,7 @@ export default function CommunityMapPage() {
         <header className="community-map-heading">
           <div>
             <Link className="community-map-back" to="/"><ArrowLeft size={15} /> YouthAct home</Link>
-            <p className="eyebrow">Community + weather dashboard</p>
+            <p className="eyebrow">Climate Mapping</p>
             <h1>One map.<br /><em>Local climate.</em></h1>
             <p className="community-map-intro">Explore approved community observations alongside live weather conditions. Click anywhere on the map to check the weather at that location.</p>
           </div>
@@ -349,6 +349,14 @@ export default function CommunityMapPage() {
                   <Popup>
                     <div className="community-report-popup">
                       <strong>{report.issueType}</strong>
+                      {report.imageUrl && (
+                        <img
+                          className="community-report-popup-image"
+                          src={getPublicClimateReportImageUrl(report.imageUrl)}
+                          alt={`Submitted photo for ${report.issueType}`}
+                          onError={(event) => { event.currentTarget.hidden = true }}
+                        />
+                      )}
                       <span>{report.township} · {readableDate(report.observationDate)}</span>
                       <span>Severity: {report.severity}</span>
                       <span className={report.verified ? 'verified-label' : 'unverified-label'}>{report.verified ? 'Verified report' : 'Unverified report'}</span>
@@ -456,38 +464,54 @@ export default function CommunityMapPage() {
             </div>
           </aside>
         </section>
-        <section className="community-town-projects" aria-labelledby="community-town-projects-title">
-          <div className="community-town-projects-heading">
+        <section className="community-observations" aria-labelledby="community-observations-title">
+          <div className="community-observations-heading">
             <div>
-              <p className="community-kicker">YOUTHACT PROJECTS</p>
-              <h2 id="community-town-projects-title">Work happening in {selectedTown}</h2>
-              <p>Explore active projects connected to this town.</p>
+              <p className="community-kicker">KOBO TOOLBOX · APPROVED SUBMISSIONS</p>
+              <h2 id="community-observations-title">Community climate observations</h2>
+              <p>Field observations shared through KoboToolbox and reviewed by the YouthAct team.</p>
             </div>
-            <span>{townProjects.length} {townProjects.length === 1 ? 'project' : 'projects'}</span>
+            <span>{filteredReports.length} {filteredReports.length === 1 ? 'observation' : 'observations'}</span>
           </div>
-          {projectsLoading ? (
-            <p className="community-projects-empty" role="status">Loading projects…</p>
-          ) : projectsError ? (
-            <p className="community-projects-empty" role="alert">{projectsError}</p>
-          ) : townProjects.length ? (
-            <div className="community-town-project-grid">
-              {townProjects.map((project) => (
-                <article className="community-town-project" key={project.id}>
-                  <img src={project.images?.[0] || project.image} alt="" loading="lazy" />
-                  <div>
-                    <span>{project.category}</span>
-                    <h3>{project.title}</h3>
-                    <p>{project.description}</p>
-                    <Link to={`/project/${project.id}/projectdetailpage`}>Explore project <span aria-hidden="true">↗</span></Link>
+          {loading && reports.length === 0 ? (
+            <p className="community-observations-empty" role="status">Loading approved KoboToolbox observations…</p>
+          ) : filteredReports.length === 0 ? (
+            <p className="community-observations-empty">
+              No approved observations match these filters. New KoboToolbox submissions appear here after review.
+            </p>
+          ) : (
+            <div className="community-observation-grid">
+              {filteredReports.slice(0, 30).map((report) => (
+                <article className="community-observation-card" key={report.id}>
+                  {report.imageUrl && (
+                    <img
+                      className="community-observation-image"
+                      src={getPublicClimateReportImageUrl(report.imageUrl)}
+                      alt={`Submitted photo for ${report.issueType} in ${report.township}`}
+                      loading="lazy"
+                      onError={(event) => { event.currentTarget.hidden = true }}
+                    />
+                  )}
+                  <div className="community-observation-card-top">
+                    <span className={`community-observation-severity community-observation-severity-${report.severity}`}>
+                      {report.severity}
+                    </span>
+                    {report.verified && <span className="verified-label">Verified</span>}
                   </div>
+                  <h3>{report.issueType}</h3>
+                  <p className="community-observation-location">{report.township} · {readableDate(report.observationDate)}</p>
+                  {report.description ? (
+                    <p className="community-observation-description">{report.description}</p>
+                  ) : (
+                    <p className="community-observation-description is-empty">No public description was added.</p>
+                  )}
                 </article>
               ))}
             </div>
-          ) : (
-            <p className="community-projects-empty">
-              {selectedTown.toLocaleLowerCase() === 'selected map location'
-                ? 'Choose a town from “Choose a location” to see projects assigned to it.'
-                : `No active projects are assigned to ${selectedTown} yet.`}
+          )}
+          {filteredReports.length > 30 && (
+            <p className="community-observations-footnote">
+              Showing the latest 30 of {filteredReports.length} matching observations. Use the filters above to narrow the list.
             </p>
           )}
         </section>

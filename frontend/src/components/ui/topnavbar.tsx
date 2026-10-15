@@ -94,7 +94,7 @@
           </div>
           <Link to="/programs">Programs</Link>
           <Link to="/stories">Stories</Link>
-          <Link to="/community-map">Community + weather</Link>
+          <Link to="/community-map">Climate Mapping</Link>
         </div>
         <button className="nav-cta" type="button" onClick={() => navigate('/admin')}>Login <span>↗</span></button>
       </nav>

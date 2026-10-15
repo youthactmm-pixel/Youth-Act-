@@ -69,6 +69,10 @@ export type ClimateReport = {
   description?: string
   sourceDescription?: string
   approvedDescription?: string
+  imageUrl?: string
+  hasImage?: boolean
+  imageConsentGiven?: boolean
+  publicImageApproved?: boolean
 }
 
 export type ClimateReportsResponse = {
@@ -475,27 +479,43 @@ export async function fetchKoboFormSubmissions(assetUid: string, signal?: AbortS
   return response.json() as Promise<ClimateReport[]>
 }
 
-export async function fetchClimateReportsForReview(): Promise<ClimateReport[]> {
-  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports`, {
+export async function fetchClimateReportsForReview(status: 'pending' | 'approved' = 'pending'): Promise<ClimateReport[]> {
+  const params = new URLSearchParams({ status })
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports?${params}`, {
     headers: getAuthHeaders(),
   })
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to load the review queue.'))
   return response.json() as Promise<ClimateReport[]>
 }
 
-export async function syncKoboClimateReports(): Promise<{ imported: number }> {
+export async function syncKoboClimateReports(): Promise<{
+  imported: number
+  published: number
+  photosFound: number
+  photosSaved: number
+}> {
   const response = await fetch(`${API_BASE_URL}/api/admin/climate/sync`, {
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify({}),
   })
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to sync Kobo submissions.'))
-  return response.json() as Promise<{ imported: number }>
+  return response.json() as Promise<{
+    imported: number
+    published: number
+    photosFound: number
+    photosSaved: number
+  }>
 }
 
 export async function moderateClimateReport(
   reportId: string,
-  input: { status: 'approved' | 'rejected'; approvedDescription?: string; verified: boolean }
+  input: {
+    status: 'approved' | 'rejected'
+    approvedDescription?: string
+    verified: boolean
+    publicImageApproved?: boolean
+  }
 ): Promise<ClimateReport> {
   const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports/${encodeURIComponent(reportId)}`, {
     method: 'PUT',
@@ -504,4 +524,16 @@ export async function moderateClimateReport(
   })
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to update report moderation.'))
   return response.json() as Promise<ClimateReport>
+}
+
+export async function fetchClimateReportImage(reportId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports/${encodeURIComponent(reportId)}/image`, {
+    headers: getAuthHeaders(),
+  })
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to load report photo.'))
+  return response.blob()
+}
+
+export function getPublicClimateReportImageUrl(imagePath: string): string {
+  return `${API_BASE_URL}${imagePath}`
 }

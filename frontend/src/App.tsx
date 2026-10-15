@@ -18,6 +18,7 @@ import AboutPage from './pages/AboutPage';
 import WhoWeArePage from './pages/WhoWeArePage';
 import ProgramsPage from './pages/ProgramsPage';
 import StoriesPage from './pages/StoriesPage';
+import StoryReportDetailPage from './pages/StoryReportDetailPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import CreateTownPage from './pages/CreateTownPage';
 import AdminLoginPage from './pages/AdminLoginPage';
@@ -233,6 +234,7 @@ function App() {
             <Route path="/partnerships" element={<WhoWeArePage />} />
             <Route path="/programs" element={<ProgramsPage />} />
             <Route path="/stories" element={<StoriesPage />} />
+            <Route path="/stories/reports/:id" element={<StoryReportDetailPage />} />
             <Route path="/community-map" element={<CommunityMapPage />} />
             <Route path="/kobo-form/:id" element={<KoboFormDetailPage />} />
 

@@ -2,27 +2,35 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
-import { fetchStories, type StoryModel } from '@/services/Api'
-
-const featuredStories: StoryModel[] = [
-  { id: 'featured-first-spark', title: 'The first spark', type: 'Field notes', description: 'How a simple question became a neighborhood project for cleaner, cooler streets.', image: '/youthact2.jpg', status: 'active' },
-  { id: 'featured-place-to-begin', title: 'A place to begin', type: 'People', description: 'Meet the young organizers creating new ways to care for the places they call home.', image: '/youthact1.jpg', status: 'active' },
-  { id: 'featured-keep-going', title: 'Keep going', type: 'Conversations', description: 'An honest conversation about momentum, uncertainty, and making change together.', image: '/youthact-Photoroom.png', status: 'active' },
-]
+import {
+  fetchClimateReports,
+  fetchStories,
+  getPublicClimateReportImageUrl,
+  type ClimateReport,
+  type StoryModel,
+} from '@/services/Api'
 
 export default function StoriesPage() {
-  const [stories, setStories] = useState<StoryModel[]>([])
-  const [error, setError] = useState('')
+  const [reports, setReports] = useState<ClimateReport[]>([])
+  const [reportsError, setReportsError] = useState('')
+  const [reportsLoading, setReportsLoading] = useState(true)
 
   useEffect(() => {
-    fetchStories()
-      .then(setStories)
-      .catch((loadError: unknown) => {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load community stories.')
-      })
-  }, [])
+    const controller = new AbortController()
 
-  const visibleStories = stories.length > 0 ? stories : featuredStories
+    fetchClimateReports(controller.signal)
+      .then((data) => setReports(data.reports))
+      .catch((loadError: unknown) => {
+        if (!controller.signal.aborted) {
+          setReportsError(loadError instanceof Error ? loadError.message : 'Unable to load community reports.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setReportsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [])
 
   return (
     <div className="app-shell inner-page">
@@ -35,21 +43,57 @@ export default function StoriesPage() {
           </div>
           <p className="page-hero-copy">Every action starts somewhere. These are the people, questions, and small victories shaping the YouthAct community.</p>
         </section>
+        <section className="stories-reports shell" aria-labelledby="stories-reports-title">
+          <div className="stories-reports-heading">
+            <div>
+              <p className="eyebrow">Community field reports</p>
+              <h2 id="stories-reports-title">Observations from the ground.</h2>
+              <p>Climate and environmental reports shared by community members and reviewed by YouthAct.</p>
+            </div>
+            <Link className="text-link" to="/community-map">Explore the climate map <span aria-hidden="true">↗</span></Link>
+          </div>
 
-        <section className="stories-list shell">
-          {error && <p className="stories-feedback" role="alert">{error}</p>}
-          {visibleStories.map((story, index) => (
-            <article className="story-row" key={story.id}>
-              <div className="story-number">{String(index + 1).padStart(2, '0')}</div>
-              <img src={story.image} alt="" />
-              <div className="story-content">
-                <p className="eyebrow">{story.type}</p>
-                <h2>{story.title}</h2>
-                <p className="body-copy">{story.description}</p>
-                {story.id.startsWith('featured-') && <Link className="text-link" to="/community-map">Explore the community <span>↗</span></Link>}
-              </div>
-            </article>
-          ))}
+          {reportsLoading ? (
+            <p className="stories-reports-feedback" role="status">Loading approved community reports…</p>
+          ) : reportsError ? (
+            <p className="stories-reports-feedback" role="alert">{reportsError}</p>
+          ) : reports.length === 0 ? (
+            <p className="stories-reports-feedback">No approved reports are available yet. New submissions appear here after review.</p>
+          ) : (
+            <div className="stories-report-grid">
+              {reports.map((report) => (
+                <Link
+                  className="stories-report-card"
+                  key={report.id}
+                  to={`/stories/reports/${encodeURIComponent(report.id)}`}
+                  aria-label={`View details for ${report.issueType} report in ${report.township}`}
+                >
+                  {report.imageUrl && (
+                    <img
+                      className="stories-report-image"
+                      src={getPublicClimateReportImageUrl(report.imageUrl)}
+                      alt={`${report.issueType} observation in ${report.township}`}
+                      loading="lazy"
+                    />
+                  )}
+                  <div className="stories-report-card-meta">
+                    <span className={`stories-report-severity stories-report-severity-${report.severity}`}>
+                      {report.severity}
+                    </span>
+                    {report.verified && <span className="verified-label">Verified</span>}
+                  </div>
+                  <p className="stories-report-location">
+                    {report.township} · {new Date(report.observationDate).toLocaleDateString()}
+                  </p>
+                  <h3>{report.issueType}</h3>
+                  <p className={`stories-report-description${report.description ? '' : ' is-empty'}`}>
+                    {report.description || 'No public description was provided.'}
+                  </p>
+                  <span className="stories-report-read-more">View report details →</span>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
         <Footer/>
       </main>

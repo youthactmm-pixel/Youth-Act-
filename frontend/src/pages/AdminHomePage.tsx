@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, ClipboardCheck, ExternalLink, MapPinned, Plus, ShieldCheck } from 'lucide-react'
-import { fetchCards, type CardModel } from '@/services/Api'
+import {
+  fetchCards,
+  fetchClimateReports,
+  getPublicClimateReportImageUrl,
+  type CardModel,
+  type ClimateReport,
+} from '@/services/Api'
 
 const adminSections = [
   {
@@ -34,6 +40,9 @@ export default function AdminHomePage() {
   const [cards, setCards] = useState<CardModel[]>([])
   const [isLoadingCards, setIsLoadingCards] = useState(true)
   const [cardsError, setCardsError] = useState('')
+  const [reports, setReports] = useState<ClimateReport[]>([])
+  const [isLoadingReports, setIsLoadingReports] = useState(true)
+  const [reportsError, setReportsError] = useState('')
 
   useEffect(() => {
     fetchCards()
@@ -42,6 +51,21 @@ export default function AdminHomePage() {
         setCardsError(error instanceof Error ? error.message : 'Unable to load cards and projects.')
       })
       .finally(() => setIsLoadingCards(false))
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchClimateReports(controller.signal)
+      .then((data) => setReports(data.reports))
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setReportsError(error instanceof Error ? error.message : 'Unable to load approved community reports.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingReports(false)
+      })
+    return () => controller.abort()
   }, [])
 
   const statusCounts = useMemo(() => ({
@@ -96,6 +120,63 @@ export default function AdminHomePage() {
                 </article>
               )
             })}
+          </div>
+        )}
+      </section>
+
+      <section className="admin-content-section admin-report-section" aria-labelledby="admin-reports-title">
+        <header className="admin-content-heading">
+          <div>
+            <p className="eyebrow">Published Kobo submissions</p>
+            <h2 id="admin-reports-title">Community report cards</h2>
+            <p>Approved reports currently visible to the public.</p>
+          </div>
+          <Link className="admin-content-create" to="/admin/reports">
+            Review reports <ArrowUpRight size={15} />
+          </Link>
+        </header>
+
+        {reportsError && <p className="admin-content-error" role="alert">{reportsError}</p>}
+        {isLoadingReports ? (
+          <p className="admin-content-empty" role="status">Loading community reports…</p>
+        ) : reports.length === 0 ? (
+          <div className="admin-content-empty">
+            <p>No approved community reports are available yet.</p>
+            <Link to="/admin/reports">Open the report queue <ArrowUpRight size={15} /></Link>
+          </div>
+        ) : (
+          <div className="stories-report-grid admin-report-grid">
+            {reports.map((report) => (
+              <Link
+                className="stories-report-card"
+                key={report.id}
+                to={`/stories/reports/${encodeURIComponent(report.id)}`}
+                aria-label={`View details for ${report.issueType} report in ${report.township}`}
+              >
+                {report.imageUrl && (
+                  <img
+                    className="stories-report-image"
+                    src={getPublicClimateReportImageUrl(report.imageUrl)}
+                    alt=""
+                    loading="lazy"
+                  />
+                )}
+                <div className="stories-report-card-meta">
+                  <span className={`stories-report-severity stories-report-severity-${report.severity}`}>
+                    {report.severity}
+                  </span>
+                  {report.verified && <span className="verified-label">Verified</span>}
+                </div>
+                <h3>{report.issueType}</h3>
+                <p className="stories-report-location">
+                  {report.township} · {new Date(report.observationDate).toLocaleDateString()}
+                </p>
+                <p className={`stories-report-description${report.description ? '' : ' is-empty'}`}>
+                  {report.description || 'No public description was provided.'}
+                </p>
+                <span className="stories-report-read-more">View report details →</span>
+              </Link>
+            ))}
           </div>
         )}
       </section>

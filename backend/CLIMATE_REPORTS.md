@@ -12,17 +12,27 @@ Configure these variables in the **backend** deployment environment (never in Vi
 The backend performs an initial sync and repeats every 60 seconds. The authenticated
 `POST /api/admin/climate/sync` endpoint is also available for an immediate sync.
 The sync reads Kobo's paginated submissions API, imports only issue type, township,
-observation date, GPS, severity, and a text description, and does not persist raw
-submissions, names, contact fields, or photographs. It accepts common Kobo field
+observation date, GPS, severity, a text description, image attachment metadata, and
+photo-publication consent; it does not persist raw submissions, names, or contact
+fields. Kobo submissions whose validation
+status is `Approved` are published with only the public-safe report fields; other new
+submissions remain pending. Existing pending reports are promoted when Kobo marks
+them approved, while reports rejected by a site administrator are not re-approved by
+the sync. Public descriptions remain blank until an administrator edits and approves
+them in YouthAct. It accepts common Kobo field
 names such as `gps`/`_geolocation`, `latitude`/`longitude`, `issue_type`, `township`,
 `observation_date`, and `severity`.
 
-Set `MONGO_URI` as required by the existing backend. New submissions are stored as
-pending, not publicly visible. Kobo is an upstream input, not a moderation source:
-an administrator must edit the public description to remove identifying details
-and approve each report. The report is labelled verified only when the reviewer
-explicitly marks it verified. Public map coordinates are rounded to three decimal
-places (about 100 m).
+Set `MONGO_URI` as required by the existing backend. Kobo-approved reports appear
+after the next sync (within 60 seconds) or an authenticated manual sync. The manual
+sync response reports new imports and newly published Kobo-approved reports. Only
+selected, non-identifying report fields are published; Kobo names, contacts, and
+source descriptions are not shown publicly. A photo can be published only when
+Kobo's photo-publication consent is affirmative and an administrator has reviewed
+the image and explicitly allowed it. The public description remains blank until an
+administrator edits it in YouthAct. The report is labelled
+verified only when an administrator explicitly marks it verified. Public map
+coordinates are rounded to three decimal places (about 100 m).
 
 ## Kobo form detail page
 
@@ -38,7 +48,7 @@ are mapped to the current form for backwards compatibility.
 
 Approved submissions imported from the configured Kobo asset are returned for
 the detail page by `GET /api/kobo/forms/:assetUid/submissions`. Only approved,
-sanitized observations are exposed; raw Kobo submissions and unreviewed responses
+public-safe observations are exposed; raw Kobo submissions and unapproved responses
 remain private. If `KOBO_ASSET_UID` overrides the detail page's default asset UID,
 it must match the form UID in the page URL for submissions to appear.
 
@@ -56,8 +66,9 @@ administrative boundary, or forecast. Risk assessment should be supported by loc
 knowledge and appropriate authoritative GIS datasets.
 
 Administrators can review pending reports at `/#/admin/reports` after signing in.
-Only the edited approved description and non-identifying map fields are returned
-by the public endpoint. Photographs are not imported or displayed.
+Only the edited approved description, non-identifying map fields, and explicitly
+approved images are returned by the public endpoint. Images are proxied by the
+backend so Kobo attachment URLs and API credentials are never sent to the browser.
 
 The climate page's "Share an observation" action opens the Kobo form at
 `/#/kobo-form/asVctXHHGzNBbQ8smxu4Ro`. Import mapping uses this form's fields for

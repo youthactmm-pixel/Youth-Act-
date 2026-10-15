@@ -257,6 +257,49 @@ function normalizeKoboSeverity(value: unknown): 'low' | 'moderate' | 'high' | 'c
   return 'low'
 }
 
+function isKoboValidationApproved(value: unknown): boolean {
+  const status = value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.values(value).filter((part): part is string => typeof part === 'string').join(' ')
+    : String(value ?? '')
+  return /\bapproved\b/i.test(status)
+}
+
+function getKoboImageUrl(record: Record<string, unknown>): string {
+  if (!Array.isArray(record._attachments)) return ''
+  const assetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
+  const expectedPath = `/api/v2/assets/${encodeURIComponent(assetUid)}/data/`
+  for (const attachment of record._attachments) {
+    if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) continue
+    const item = attachment as Record<string, unknown>
+    if (item.is_deleted === true) continue
+    if (typeof item.mimetype !== 'string' || !item.mimetype.toLowerCase().startsWith('image/')) continue
+    const url = [item.download_url, item.download_large_url, item.download_medium_url, item.download_small_url]
+      .find((candidate): candidate is string => typeof candidate === 'string' && Boolean(candidate.trim()))
+    if (!url) continue
+    try {
+      const parsed = new URL(url, `${KOBO_API_URL}/`)
+      if (
+        parsed.protocol === 'https:' &&
+        parsed.origin === new URL(KOBO_API_URL).origin &&
+        parsed.pathname.startsWith(expectedPath)
+      ) {
+        return parsed.toString()
+      }
+    } catch {
+      console.warn('Ignoring invalid Kobo image attachment URL.')
+    }
+  }
+  return ''
+}
+
+function getKoboImageConsent(record: Record<string, unknown>): boolean {
+  const values = flattenKoboRecord(record)
+  const consent = String(pickKoboValue(values, [
+    'Can_this_photo_and_l_r_review_',
+  ]) ?? '').toLowerCase().replace(/[^a-z]/g, '')
+  return consent.startsWith('yes') && consent.includes('subjecttoreview')
+}
+
 function normalizeKoboReport(record: Record<string, unknown>) {
   const values = flattenKoboRecord(record)
   const coordinate =
@@ -299,6 +342,9 @@ function normalizeKoboReport(record: Record<string, unknown>) {
 
   return {
     externalId: id,
+    koboApproved: isKoboValidationApproved(record._validation_status),
+    sourceImageUrl: getKoboImageUrl(record),
+    sourceImageConsent: getKoboImageConsent(record),
     township: String(pickKoboValue(values, ['township', 'town', 'district', 'area', 'Township_']) ?? 'Unspecified').trim().slice(0, 120) || 'Unspecified',
     issueType: issueType.slice(0, 120),
     observationDate: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
@@ -409,8 +455,8 @@ function resolveKoboAssetUid(requestedUid: string) {
 async function syncKoboReports() {
   const assetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
   const apiToken = process.env.KOBO_API_TOKEN?.trim()
-  if (!assetUid || !apiToken) return { imported: 0, configured: false }
-  if (isKoboSyncRunning) return { imported: 0, configured: true }
+  if (!assetUid || !apiToken) return { imported: 0, published: 0, configured: false }
+  if (isKoboSyncRunning) return { imported: 0, published: 0, configured: true }
 
   isKoboSyncRunning = true
   try {
@@ -419,6 +465,9 @@ async function syncKoboReports() {
     }
     let nextUrl: string | null = `${KOBO_API_URL}/api/v2/assets/${encodeURIComponent(assetUid)}/data/?format=json`
     let imported = 0
+    let published = 0
+    let photosFound = 0
+    let photosSaved = 0
     let pageCount = 0
     while (nextUrl && pageCount < 50) {
       const parsedUrl = new URL(nextUrl)
@@ -435,18 +484,34 @@ async function syncKoboReports() {
       for (const record of records) {
         const normalized = normalizeKoboReport(record as Record<string, unknown>)
         if (!normalized) continue
+        const { koboApproved, ...report } = normalized
+        if (report.sourceImageUrl) photosFound += 1
         const upsertResult = await ClimateReport.updateOne(
-          { externalId: normalized.externalId },
-          { $setOnInsert: { ...normalized, status: 'pending', verified: false } },
+          { externalId: report.externalId },
+          { $setOnInsert: { ...report, status: koboApproved ? 'approved' : 'pending', verified: false } },
           { upsert: true }
         )
         imported += upsertResult.upsertedCount
+        if (report.sourceImageUrl || report.sourceImageConsent) {
+          const photoUpdate = await ClimateReport.updateOne(
+            { externalId: report.externalId, status: { $ne: 'rejected' } },
+            { $set: { sourceImageUrl: report.sourceImageUrl, sourceImageConsent: report.sourceImageConsent } }
+          )
+          if (report.sourceImageUrl && (photoUpdate.modifiedCount || photoUpdate.matchedCount)) photosSaved += 1
+        }
+        if (koboApproved) {
+          const promotionResult = await ClimateReport.updateOne(
+            { externalId: report.externalId, status: 'pending' },
+            { $set: { status: 'approved' } }
+          )
+          published += upsertResult.upsertedCount + promotionResult.modifiedCount
+        }
       }
       nextUrl = typeof pageData.next === 'string' ? pageData.next : null
       pageCount += 1
     }
     if (nextUrl) throw new Error('Kobo submissions exceeded the 50-page synchronization limit')
-    return { imported, configured: true }
+    return { imported, published, photosFound, photosSaved, configured: true }
   } finally {
     isKoboSyncRunning = false
   }
@@ -467,8 +532,73 @@ function serializeClimateReport(report: any, publicView = false) {
     verified: Boolean(report.verified),
   }
   return publicView
-    ? { ...common, description: sanitizePublicDescription(report.approvedDescription) }
-    : { ...common, sourceDescription: report.sourceDescription, approvedDescription: report.approvedDescription }
+    ? {
+        ...common,
+        description: sanitizePublicDescription(report.approvedDescription),
+        imageUrl: report.publicImageApproved && report.sourceImageConsent && report.sourceImageUrl
+          ? `/api/climate/reports/${report._id?.toString() ?? report.id}/image`
+          : undefined,
+      }
+    : {
+        ...common,
+        sourceDescription: report.sourceDescription,
+        approvedDescription: report.approvedDescription,
+        hasImage: Boolean(report.sourceImageUrl),
+        imageConsentGiven: Boolean(report.sourceImageConsent),
+        publicImageApproved: Boolean(report.publicImageApproved),
+      }
+}
+
+async function sendClimateReportImage(report: any, response: express.Response) {
+  const sourceUrl = typeof report.sourceImageUrl === 'string' ? report.sourceImageUrl : ''
+  if (!sourceUrl) {
+    response.status(404).json({ message: 'No report image is available.' })
+    return
+  }
+
+  try {
+    const parsedUrl = new URL(sourceUrl)
+    const assetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
+    const expectedPath = `/api/v2/assets/${encodeURIComponent(assetUid)}/data/`
+    if (
+      parsedUrl.protocol !== 'https:' ||
+      parsedUrl.origin !== new URL(KOBO_API_URL).origin ||
+      !parsedUrl.pathname.startsWith(expectedPath)
+    ) {
+      throw new Error('Stored Kobo image URL did not pass validation')
+    }
+
+    const apiToken = process.env.KOBO_API_TOKEN?.trim()
+    if (!apiToken) {
+      response.status(503).json({ message: 'Kobo image access is not configured.' })
+      return
+    }
+
+    const imageResponse = await axios.get<ArrayBuffer>(parsedUrl.toString(), {
+      headers: { Authorization: `Token ${apiToken}` },
+      responseType: 'arraybuffer',
+      timeout: 20000,
+      maxRedirects: 0,
+      maxContentLength: 8 * 1024 * 1024,
+    })
+    const contentType = String(imageResponse.headers['content-type'] ?? '').split(';')[0].toLowerCase()
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
+      response.status(415).json({ message: 'This report image format is not supported.' })
+      return
+    }
+
+    response.set({
+      'Content-Type': contentType,
+      'Content-Length': String(imageResponse.data.byteLength),
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    })
+    response.send(Buffer.from(imageResponse.data))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load report image'
+    console.error('Kobo report image request failed:', errorMessage)
+    if (!response.headersSent) response.status(502).json({ message: 'Unable to load report image.' })
+  }
 }
 
 function sanitizePublicDescription(value: unknown) {
@@ -638,6 +768,30 @@ app.get('/api/kobo/forms/:assetUid/submissions', async (request, response) => {
   }
 })
 
+app.get('/api/climate/reports/:id/image', async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(404).json({ message: 'Climate report image not found.' })
+    return
+  }
+  try {
+    const report = await ClimateReport.findOne({
+      _id: request.params.id,
+      status: 'approved',
+      publicImageApproved: true,
+      sourceImageConsent: true,
+    }).lean()
+    if (!report) {
+      response.status(404).json({ message: 'Climate report image not found.' })
+      return
+    }
+    await sendClimateReportImage(report, response)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load report image'
+    console.error('Public climate report image lookup failed:', errorMessage)
+    response.status(500).json({ message: 'Unable to load report image.' })
+  }
+})
+
 app.get('/api/climate/reports', async (_request, response) => {
   try {
     const reports = await ClimateReport.find({ status: 'approved' }).sort({ observationDate: -1 }).limit(500).lean()
@@ -665,6 +819,25 @@ app.get('/api/admin/climate/reports', requireAdmin, async (request, response) =>
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unable to load report review queue'
     response.status(500).json({ message: 'Unable to load report review queue', error: errorMessage })
+  }
+})
+
+app.get('/api/admin/climate/reports/:id/image', requireAdmin, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(404).json({ message: 'Climate report image not found.' })
+    return
+  }
+  try {
+    const report = await ClimateReport.findById(request.params.id).lean()
+    if (!report) {
+      response.status(404).json({ message: 'Climate report image not found.' })
+      return
+    }
+    await sendClimateReportImage(report, response)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to load report image'
+    console.error('Admin climate report image lookup failed:', errorMessage)
+    response.status(500).json({ message: 'Unable to load report image.' })
   }
 })
 
@@ -697,16 +870,31 @@ app.put('/api/admin/climate/reports/:id', requireAdmin, async (request, response
       response.status(400).json({ message: 'A valid review status is required' })
       return
     }
-    if (status === 'approved' && !approvedDescription) {
+    const existingReport = await ClimateReport.findById(request.params.id)
+    if (!existingReport) {
+      response.status(404).json({ message: 'Climate report not found' })
+      return
+    }
+    if (status === 'approved' && !approvedDescription && existingReport.status !== 'approved') {
       response.status(400).json({ message: 'Add an approved, privacy-reviewed description before publishing.' })
+      return
+    }
+    if (
+      request.body?.publicImageApproved === true &&
+      (!existingReport.sourceImageUrl || !existingReport.sourceImageConsent)
+    ) {
+      response.status(400).json({ message: 'The report has no photo approved for public sharing.' })
       return
     }
     const report = await ClimateReport.findByIdAndUpdate(
       request.params.id,
       {
         status,
-        approvedDescription: status === 'approved' ? approvedDescription : '',
+        approvedDescription: status === 'approved'
+          ? approvedDescription || existingReport.approvedDescription
+          : '',
         verified: status === 'approved' && request.body?.verified === true,
+        publicImageApproved: status === 'approved' && request.body?.publicImageApproved === true,
       },
       { new: true, runValidators: true }
     )

@@ -163,6 +163,9 @@ const climateReportSchema = new Schema(
       enum: ['low', 'moderate', 'high', 'critical'],
       required: true,
     },
+    sourceImageUrl: { type: String, trim: true, default: '' },
+    sourceImageConsent: { type: Boolean, default: false },
+    publicImageApproved: { type: Boolean, default: false },
     sourceDescription: { type: String, trim: true, maxlength: 2000, default: '' },
     approvedDescription: { type: String, trim: true, maxlength: 1000, default: '' },
     status: {
