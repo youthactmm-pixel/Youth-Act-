@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, ClipboardCheck, ExternalLink, MapPinned, Plus, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, ClipboardCheck, ExternalLink, Plus, ShieldCheck } from 'lucide-react'
+import { FormattedText } from '@/components/RichText'
 import {
   fetchCards,
   fetchClimateReports,
@@ -17,14 +18,6 @@ const adminSections = [
     action: 'Open card management',
     icon: Plus,
     accent: 'admin-dashboard-accent-coral',
-  },
-  {
-    title: 'Create and manage towns',
-    description: 'Add townships and edit the town list used across the site.',
-    href: '/admin/towns',
-    action: 'Open town management',
-    icon: MapPinned,
-    accent: 'admin-dashboard-accent-green',
   },
   {
     title: 'Review community reports',
@@ -84,7 +77,6 @@ export default function AdminHomePage() {
             <p>These cards appear on the website and link to their project detail pages.</p>
           </div>
           <div className="admin-content-shortcuts">
-            <Link to="/admin/stories">Create story <ArrowUpRight size={15} /></Link>
             <Link to="/admin/cards">Create card <ArrowUpRight size={15} /></Link>
           </div>
         </header>
@@ -106,7 +98,7 @@ export default function AdminHomePage() {
                   <img className="admin-content-thumbnail" src={images[0]} alt="" />
                   <div className="admin-content-details">
                     <strong>{card.title}</strong>
-                    <p>{card.category} · {card.description}</p>
+                    <p>{card.category} · <FormattedText text={card.description} /></p>
                   </div>
                   <span className={`admin-content-status admin-content-status-${card.status.toLowerCase()}`}>{card.status}</span>
                   <div className="admin-content-actions">
@@ -172,9 +164,11 @@ export default function AdminHomePage() {
                   <p className="stories-report-location">
                     {report.township} · {new Date(report.observationDate).toLocaleDateString()}
                   </p>
-                  <p className={`stories-report-description${report.description ? '' : ' is-empty'}`}>
-                    {report.description || 'No public description was provided.'}
-                  </p>
+                  <FormattedText
+                    as="p"
+                    className={`stories-report-description${report.description ? '' : ' is-empty'}`}
+                    text={report.description || 'No public description was provided.'}
+                  />
                   <span className="stories-report-read-more">View report details →</span>
                 </div>
               </Link>

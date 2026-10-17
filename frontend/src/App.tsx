@@ -20,14 +20,12 @@ import ProgramsPage from './pages/ProgramsPage';
 import StoriesPage from './pages/StoriesPage';
 import StoryReportDetailPage from './pages/StoryReportDetailPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
-import CreateTownPage from './pages/CreateTownPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import CommunityMapPage from './pages/CommunityMapPage';
 import KoboFormDetailPage from './pages/KoboFormDetailPage';
 import ClimateReportReviewPage from './pages/ClimateReportReviewPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminHomePage from './pages/AdminHomePage';
-import StoryAdminPage from './pages/StoryAdminPage';
 import { isAdminAuthenticated, clearAdminToken } from './services/auth';
 
 class ErrorBoundary extends Component<
@@ -156,40 +154,6 @@ function AdminCardsRoute() {
   );
 }
 
-function CreateTownRoute() {
-  const navigate = useNavigate();
-
-  if (!isAdminAuthenticated()) {
-    return <Navigate to="/admin/login" replace />;
-  }
-
-  return (
-    <CreateTownPage
-      onBack={() => navigate('/admin')}
-      onLogout={() => {
-        clearAdminToken();
-        navigate('/admin/login');
-      }}
-    />
-  );
-}
-
-function StoryAdminRoute() {
-  const navigate = useNavigate();
-  if (!isAdminAuthenticated()) {
-    return <Navigate to="/admin/login" replace />;
-  }
-  return (
-    <StoryAdminPage
-      onBack={() => navigate('/admin')}
-      onLogout={() => {
-        clearAdminToken();
-        navigate('/admin/login');
-      }}
-    />
-  );
-}
-
 function ClimateReportReviewRoute() {
   const navigate = useNavigate();
   if (!isAdminAuthenticated()) {
@@ -246,8 +210,8 @@ function App() {
             <Route path="/admin" element={<AdminRoute />}>
               <Route index element={<AdminHomePage />} />
               <Route path="cards" element={<AdminCardsRoute />} />
-              <Route path="stories" element={<StoryAdminRoute />} />
-              <Route path="towns" element={<CreateTownRoute />} />
+              <Route path="stories" element={<Navigate to="/admin" replace />} />
+              <Route path="towns" element={<Navigate to="/admin" replace />} />
               <Route path="reports" element={<ClimateReportReviewRoute />} />
             </Route>
 
@@ -256,7 +220,7 @@ function App() {
               element={<AdminLoginRoute />}
             />
 
-            <Route path="/create-town" element={<Navigate to="/admin/towns" replace />} />
+            <Route path="/create-town" element={<Navigate to="/admin" replace />} />
 
             <Route
               path="/yangon-weather"

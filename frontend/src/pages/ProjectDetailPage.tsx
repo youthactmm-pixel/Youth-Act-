@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { FormattedText } from '@/components/RichText'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 import { fetchProjectById } from '@/services/Api'
@@ -31,6 +32,10 @@ export default function ProjectDetailPage() {
       .finally(() => setLoading(false))
   }, [id])
 
+  const projectImages = project
+    ? [...new Set(project.images?.length ? project.images : [project.image])].filter(Boolean)
+    : []
+
   return (
     <div className="app-shell inner-page">
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
@@ -56,15 +61,32 @@ export default function ProjectDetailPage() {
           <section className="project-detail-page shell">
             <Link className="project-back-link" to="/programs">← All programs</Link>
             <div className="project-detail-header">
-              <div>
+              <div className="project-detail-heading">
                 <p className="eyebrow">{project.category}</p>
                 <h1>{project.title}</h1>
               </div>
               <span className="project-status">{project.status}</span>
             </div>
+
+            {projectImages.length > 0 && (
+              <div className="project-detail-gallery" aria-label="Project photos">
+                {projectImages.map((image, index) => (
+                  <img
+                    className={index === 0 ? 'project-detail-photo project-detail-photo-featured' : 'project-detail-photo'}
+                    src={image}
+                    alt={`${project.title} photo ${index + 1}`}
+                    key={`${image.slice(0, 40)}-${index}`}
+                  />
+                ))}
+              </div>
+            )}
+
             <div className="project-detail-content">
-              <p>{project.description}</p>
-              <p>Every project starts with a question and grows through people, ideas, and action. Explore how this work creates room for young people to contribute.</p>
+              <div className="project-detail-content-label">
+                <span>About this program</span>
+                <span>Project overview</span>
+              </div>
+              <FormattedText as="p" text={project.description} />
             </div>
           </section>
         )}

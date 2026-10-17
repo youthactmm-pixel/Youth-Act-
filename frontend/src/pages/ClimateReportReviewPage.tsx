@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { RichTextArea } from '@/components/RichText'
 import {
   fetchClimateReportsForReview,
   fetchClimateReportImage,
@@ -203,7 +204,7 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
             <p className="climate-review-source-label">Imported text for review (personal/contact fields are not imported):</p>
             <label className="field climate-review-description">
               <span>Public description — remove identifying or private details</span>
-              <textarea maxLength={1000} value={descriptions[report.id] ?? ''} onChange={(event) => setDescriptions((current) => ({ ...current, [report.id]: event.target.value }))} placeholder="Write a short, privacy-safe description of the observation." />
+              <RichTextArea maxLength={1000} value={descriptions[report.id] ?? ''} onChange={(description) => setDescriptions((current) => ({ ...current, [report.id]: description }))} placeholder="Write a short, privacy-safe description of the observation." />
             </label>
             {queueStatus === 'pending' && (
               <>

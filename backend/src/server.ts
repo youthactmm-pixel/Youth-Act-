@@ -28,6 +28,7 @@ const KOBO_API_URL = (
 const KOBO_DETAIL_ASSET_UID = (process.env.KOBO_DETAIL_ASSET_UID ?? 'asVctXHHGzNBbQ8smxu4Ro').trim()
 const LEGACY_KOBO_DETAIL_ASSET_UID = '14afc072f186fd92a83fce2d2161c98897244df1'
 let isKoboSyncRunning = false
+let cachedKoboIssueChoiceLabels: { assetUid: string; labels: Map<string, string>; loadedAt: number } | null = null
 
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '10mb' }))
@@ -300,7 +301,7 @@ function getKoboImageConsent(record: Record<string, unknown>): boolean {
   return consent.startsWith('yes') && consent.includes('subjecttoreview')
 }
 
-function normalizeKoboReport(record: Record<string, unknown>) {
+function normalizeKoboReport(record: Record<string, unknown>, issueChoiceLabels: Map<string, string>) {
   const values = flattenKoboRecord(record)
   const coordinate =
     parseKoboCoordinate(pickKoboValue(values, [
@@ -319,15 +320,26 @@ function normalizeKoboReport(record: Record<string, unknown>) {
 
   if (!coordinate || Math.abs(coordinate[0]) > 90 || Math.abs(coordinate[1]) > 180) return null
 
-  const issueType = String(pickKoboValue(values, [
+  const issueTypeValue = pickKoboValue(values, [
+    'Q8_What_environmental_problem_did_you_notice_',
+    'what_environmental_problem_did_you_notice',
+    'identify_the_problem',
+    'Q8_What_environment_d_you_notice_',
     'issue_type',
     'issue',
     'environmental_issue',
     'climate_hazard',
     'hazard',
     'category',
-    'Q8_What_environment_d_you_notice_',
-  ]) ?? '').trim()
+  ])
+  const issueTypeChoices = Array.isArray(issueTypeValue)
+    ? issueTypeValue.flatMap((choice) => String(choice).trim().split(/\s+/))
+    : String(issueTypeValue ?? '').trim().split(/\s+/)
+  const issueTypes = issueTypeChoices
+    .map((choice) => choice.trim().replace(/^_+|_+$/g, ''))
+    .filter(Boolean)
+    .map((choice) => issueChoiceLabels.get(normalizeKoboKey(choice)) ?? choice)
+  const issueType = issueTypes.join(', ')
   if (!issueType) return null
   const observedAt = pickKoboValue(values, [
     'observation_date',
@@ -346,7 +358,8 @@ function normalizeKoboReport(record: Record<string, unknown>) {
     sourceImageUrl: getKoboImageUrl(record),
     sourceImageConsent: getKoboImageConsent(record),
     township: String(pickKoboValue(values, ['township', 'town', 'district', 'area', 'Township_']) ?? 'Unspecified').trim().slice(0, 120) || 'Unspecified',
-    issueType: issueType.slice(0, 120),
+    issueType: issueType.slice(0, 1000),
+    issueTypes,
     observationDate: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
     latitude: coordinate[0],
     longitude: coordinate[1],
@@ -412,6 +425,157 @@ function getKoboFormQuestions(content: unknown): Array<{ name: string; label: st
   return questions
 }
 
+function getKoboIssueChoices(content: unknown): Array<{ value: string; label: string }> {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) return []
+  const formContent = content as Record<string, unknown>
+  const survey = Array.isArray(formContent.survey) ? formContent.survey : []
+  const choices = Array.isArray(formContent.choices) ? formContent.choices : []
+  const issueAliases = [
+    'q8whatenvironmentalproblemdidyounotice',
+    'whatenvironmentalproblemdidyounotice',
+    'identifytheproblem',
+    'q8whatenvironmentdoyounotice',
+  ]
+  let issueListName = ''
+  let nestedIssueChoices: Record<string, unknown>[] = []
+
+  const visit = (nodes: unknown[]) => {
+    for (const node of nodes) {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) continue
+      const item = node as Record<string, unknown>
+      const name = typeof item.name === 'string' ? normalizeKoboKey(item.name) : ''
+      const label = getKoboLabel(item.label).toLowerCase()
+      if (
+        issueAliases.some((alias) => name.includes(alias)) ||
+        label.includes('identify the problem') ||
+        label.includes('what environmental problem did you notice')
+      ) {
+        const type = typeof item.type === 'string' ? item.type.trim() : ''
+        issueListName = type.split(/\s+/).slice(1).join(' ')
+        nestedIssueChoices = Array.isArray(item.children)
+          ? item.children.filter((choice): choice is Record<string, unknown> =>
+              Boolean(choice) && typeof choice === 'object' && !Array.isArray(choice)
+            )
+          : []
+      }
+      if (Array.isArray(item.children)) visit(item.children)
+      if (Array.isArray(item.survey)) visit(item.survey)
+    }
+  }
+  visit(survey)
+
+  const issueChoices = new Map<string, string>()
+  const addChoice = (choice: Record<string, unknown>) => {
+    const name = typeof choice.name === 'string' ? choice.name.trim() : ''
+    const label = getKoboLabel(choice.label)
+    if (name && label) issueChoices.set(normalizeKoboKey(name), label)
+  }
+
+  for (const choice of nestedIssueChoices) addChoice(choice)
+  for (const choice of choices) {
+    if (!choice || typeof choice !== 'object' || Array.isArray(choice)) continue
+    const item = choice as Record<string, unknown>
+    const choiceListName = typeof item.list_name === 'string' ? item.list_name : ''
+    if (issueListName && choiceListName === issueListName) addChoice(item)
+  }
+
+  return [...issueChoices.entries()].map(([value, label]) => ({ value, label }))
+}
+
+function getKoboSection3Options(content: unknown): Array<{
+  questionName: string
+  questionLabel: string
+  choices: Array<{ value: string; label: string }>
+}> {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) return []
+  const formContent = content as Record<string, unknown>
+  const survey = Array.isArray(formContent.survey) ? formContent.survey : []
+  const choices = Array.isArray(formContent.choices) ? formContent.choices : []
+  const sectionOptions: Array<{
+    questionName: string
+    questionLabel: string
+    choices: Array<{ value: string; label: string }>
+  }> = []
+
+  const collectChoices = (question: Record<string, unknown>, type: string) => {
+    const listName = type.split(/\s+/).slice(1).join(' ')
+    const questionChoices = new Map<string, { value: string; label: string }>()
+    const addChoice = (choice: Record<string, unknown>) => {
+      const value = typeof choice.name === 'string' ? choice.name.trim() : ''
+      const label = getKoboLabel(choice.label)
+      if (value && label) questionChoices.set(normalizeKoboKey(value), { value, label })
+    }
+
+    if (Array.isArray(question.children)) {
+      for (const child of question.children) {
+        if (child && typeof child === 'object' && !Array.isArray(child)) {
+          addChoice(child as Record<string, unknown>)
+        }
+      }
+    }
+    for (const choice of choices) {
+      if (!choice || typeof choice !== 'object' || Array.isArray(choice)) continue
+      const item = choice as Record<string, unknown>
+      if (listName && item.list_name === listName) addChoice(item)
+    }
+
+    return [...questionChoices.values()]
+  }
+
+  const visit = (nodes: unknown[], inheritedSection3: boolean) => {
+    const section3Stack = [inheritedSection3]
+    for (const node of nodes) {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) continue
+      const item = node as Record<string, unknown>
+      const name = typeof item.name === 'string' ? item.name : ''
+      const label = getKoboLabel(item.label)
+      const normalizedContext = normalizeKoboKey(`${name} ${label}`)
+      const isSection3Group = normalizedContext.includes('section3') ||
+        normalizedContext.includes('sectionthree') ||
+        normalizedContext.includes('identifytheproblem')
+      const type = typeof item.type === 'string' ? item.type.trim() : ''
+      if (type.toLowerCase() === 'end_group') {
+        if (section3Stack.length > 1) section3Stack.pop()
+        continue
+      }
+      const isSection3 = section3Stack[section3Stack.length - 1] || isSection3Group
+      if (type.toLowerCase() === 'begin_group') {
+        const nestedNodes = Array.isArray(item.children)
+          ? item.children
+          : Array.isArray(item.survey)
+            ? item.survey
+            : null
+        if (nestedNodes) visit(nestedNodes, isSection3)
+        else section3Stack.push(isSection3)
+        continue
+      }
+      const isProblemQuestion = normalizedContext.includes('identifytheproblem') ||
+        normalizedContext.includes('whatenvironmentalproblemdidyounotice') ||
+        normalizedContext.includes('whatenvironmentdoyounotice')
+      if (
+        (isSection3 || isProblemQuestion) &&
+        /^select_(one|multiple)\s+/i.test(type) &&
+        name &&
+        label
+      ) {
+        const questionChoices = collectChoices(item, type)
+        if (questionChoices.length) {
+          sectionOptions.push({ questionName: name, questionLabel: label, choices: questionChoices })
+        }
+      }
+      if (Array.isArray(item.children)) visit(item.children, isSection3)
+      if (Array.isArray(item.survey)) visit(item.survey, isSection3)
+    }
+  }
+
+  visit(survey, false)
+  return sectionOptions
+}
+
+function getKoboIssueChoiceLabels(content: unknown): Map<string, string> {
+  return new Map(getKoboIssueChoices(content).map(({ value, label }) => [value, label]))
+}
+
 function serializeKoboForm(asset: Record<string, unknown>) {
   const settings = asset.settings && typeof asset.settings === 'object'
     ? asset.settings as Record<string, unknown>
@@ -441,6 +605,8 @@ function serializeKoboForm(asset: Record<string, unknown>) {
     title: typeof asset.name === 'string' && asset.name.trim() ? asset.name.trim() : 'Community form',
     description: typeof settings.description === 'string' ? settings.description.trim() : '',
     questions: getKoboFormQuestions(asset.content),
+    issueTypeChoices: getKoboIssueChoices(asset.content),
+    section3Options: getKoboSection3Options(asset.content),
     participationUrl,
     active,
   }
@@ -463,6 +629,29 @@ async function syncKoboReports() {
     if (new URL(KOBO_API_URL).protocol !== 'https:') {
       throw new Error('KOBO_API_URL must use HTTPS to protect the API token')
     }
+    if (
+      !cachedKoboIssueChoiceLabels ||
+      cachedKoboIssueChoiceLabels.assetUid !== assetUid ||
+      Date.now() - cachedKoboIssueChoiceLabels.loadedAt > 5 * 60 * 1000
+    ) {
+      try {
+        const formResponse = await axios.get<Record<string, unknown>>(
+          `${KOBO_API_URL}/api/v2/assets/${encodeURIComponent(assetUid)}/`,
+          { headers: { Authorization: `Token ${apiToken}` }, timeout: 20000, maxRedirects: 0 }
+        )
+        cachedKoboIssueChoiceLabels = {
+          assetUid,
+          labels: getKoboIssueChoiceLabels(formResponse.data.content),
+          loadedAt: Date.now(),
+        }
+      } catch (error) {
+        console.warn('Unable to load Kobo issue labels; importing choice values as provided.')
+        if (cachedKoboIssueChoiceLabels?.assetUid !== assetUid) cachedKoboIssueChoiceLabels = null
+      }
+    }
+    const issueChoiceLabels = cachedKoboIssueChoiceLabels?.assetUid === assetUid
+      ? cachedKoboIssueChoiceLabels.labels
+      : new Map<string, string>()
     let nextUrl: string | null = `${KOBO_API_URL}/api/v2/assets/${encodeURIComponent(assetUid)}/data/?format=json`
     let imported = 0
     let published = 0
@@ -482,13 +671,17 @@ async function syncKoboReports() {
       const pageData: { results?: unknown[]; next?: string | null } = pageResponse.data
       const records = Array.isArray(pageData.results) ? pageData.results : []
       for (const record of records) {
-        const normalized = normalizeKoboReport(record as Record<string, unknown>)
+        const normalized = normalizeKoboReport(record as Record<string, unknown>, issueChoiceLabels)
         if (!normalized) continue
         const { koboApproved, ...report } = normalized
         if (report.sourceImageUrl) photosFound += 1
+        const { issueType, issueTypes, ...reportOnInsert } = report
         const upsertResult = await ClimateReport.updateOne(
           { externalId: report.externalId },
-          { $setOnInsert: { ...report, status: koboApproved ? 'approved' : 'pending', verified: false } },
+          {
+            $set: { issueType, issueTypes },
+            $setOnInsert: { ...reportOnInsert, status: koboApproved ? 'approved' : 'pending', verified: false },
+          },
           { upsert: true }
         )
         imported += upsertResult.upsertedCount
@@ -524,6 +717,9 @@ function serializeClimateReport(report: any, publicView = false) {
     id: report._id?.toString() ?? report.id,
     township: report.township,
     issueType: report.issueType,
+    issueTypes: Array.isArray(report.issueTypes) && report.issueTypes.length
+      ? report.issueTypes
+      : String(report.issueType ?? '').split(/\s*,\s*/).filter(Boolean),
     observationDate: new Date(report.observationDate).toISOString(),
     latitude: publicView ? Number(latitude.toFixed(3)) : latitude,
     longitude: publicView ? Number(longitude.toFixed(3)) : longitude,
@@ -1029,60 +1225,6 @@ app.get('/api/towns', async (_request, response) => {
   }
 })
 
-app.post('/api/towns', requireAdmin, async (request, response) => {
-  try {
-    const townName = typeof request.body.town === 'string' ? request.body.town.trim() : ''
-
-    if (!townName) {
-      response.status(400).json({ message: 'Town name is required' })
-      return
-    }
-
-    const newTown = await Town.create({ town: townName })
-    response.status(201).json(serializeTown(newTown))
-  } catch (error: any) {
-    if (error?.code === 11000) {
-      response.status(409).json({ message: 'This town already exists' })
-      return
-    }
-
-    const errorMessage = error instanceof Error ? error.message : 'Unable to create town'
-    response.status(400).json({ message: 'Unable to create town', error: errorMessage })
-  }
-})
-
-app.put('/api/towns/:id', requireAdmin, async (request, response) => {
-  try {
-    const townName = typeof request.body.town === 'string' ? request.body.town.trim() : ''
-
-    if (!townName) {
-      response.status(400).json({ message: 'Town name is required' })
-      return
-    }
-
-    const town = await Town.findByIdAndUpdate(
-      request.params.id,
-      { town: townName },
-      { new: true, runValidators: true }
-    )
-
-    if (!town) {
-      response.status(404).json({ message: 'Town not found' })
-      return
-    }
-
-    response.json(serializeTown(town))
-  } catch (error: any) {
-    if (error?.code === 11000) {
-      response.status(409).json({ message: 'This town already exists' })
-      return
-    }
-
-    const errorMessage = error instanceof Error ? error.message : 'Unable to update town'
-    response.status(400).json({ message: 'Unable to update town', error: errorMessage })
-  }
-})
-
 app.get('/api/programs', async (_request, response) => {
   const cards = await Card.find({}).lean()
   response.json(cards.map(serializeCard))
@@ -1095,45 +1237,6 @@ app.get('/api/stories', async (_request, response) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unable to load stories'
     response.status(500).json({ message: 'Unable to load stories', error: errorMessage })
-  }
-})
-
-app.get('/api/admin/stories', requireAdmin, async (_request, response) => {
-  try {
-    const stories = await Story.find({}).sort({ createdAt: -1 }).lean()
-    response.json(stories.map(serializeStory))
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unable to load stories'
-    response.status(500).json({ message: 'Unable to load stories', error: errorMessage })
-  }
-})
-
-app.post('/api/admin/stories', requireAdmin, async (request, response) => {
-  try {
-    const title = typeof request.body?.title === 'string' ? request.body.title.trim() : ''
-    const type = typeof request.body?.type === 'string' ? request.body.type.trim() : ''
-    const description = typeof request.body?.description === 'string' ? request.body.description.trim() : ''
-    const image = typeof request.body?.image === 'string' ? request.body.image.trim() : ''
-    const status = request.body?.status
-
-    if (!title || !type || !description || !image) {
-      response.status(400).json({ message: 'Title, story type, description, and image are required.' })
-      return
-    }
-    if (title.length > 160 || type.length > 80 || description.length > 4000) {
-      response.status(400).json({ message: 'Some story fields exceed the allowed length.' })
-      return
-    }
-    if (!['active', 'draft'].includes(status)) {
-      response.status(400).json({ message: 'Choose whether the story should be published or saved as a draft.' })
-      return
-    }
-
-    const story = await Story.create({ title, type, description, image, status })
-    response.status(201).json(serializeStory(story))
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unable to create story'
-    response.status(400).json({ message: 'Unable to create story', error: errorMessage })
   }
 })
 

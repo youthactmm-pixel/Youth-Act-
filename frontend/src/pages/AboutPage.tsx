@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card'
 import { Link } from 'react-router-dom'
 import { Skeleton } from '@/components/ui/skeleton'
+import { FormattedText } from '@/components/RichText'
 import { CardModel, fetchCards } from '@/services/Api'
 import { ArrowDown, ArrowRight, BookOpen, Leaf, Map, UsersRound } from 'lucide-react'
 
@@ -159,7 +160,7 @@ export default function AboutPage() {
                                 ))}
                               </CardImage>
                               <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
-                              <CardDescription className="text-sm leading-6 text-slate-600">{card.description}</CardDescription>
+                              <CardDescription className="text-sm leading-6 text-slate-600"><FormattedText text={card.description} /></CardDescription>
                               <Link className="text-link" to={`/project/${card.id}/projectdetailpage`} aria-label={`Learn about ${card.title}`}>
                                 Learn more <span>↗</span>
                               </Link>

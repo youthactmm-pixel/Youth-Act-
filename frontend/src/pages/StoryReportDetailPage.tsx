@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, MapPin, ShieldCheck } from 'lucide-react'
+import { FormattedText } from '@/components/RichText'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 import {
@@ -103,9 +104,11 @@ export default function StoryReportDetailPage() {
                 <div className="story-report-detail-content">
                   <section className="story-report-description-panel">
                     <p className="story-report-section-label">What was observed</p>
-                    <p className="story-report-detail-description">
-                      {report.description || 'No public description was provided.'}
-                    </p>
+                    <FormattedText
+                      as="p"
+                      className="story-report-detail-description"
+                      text={report.description || 'No public description was provided.'}
+                    />
                   </section>
                   <section className="story-report-facts-panel" aria-label="Report information">
                     <p className="story-report-section-label">Report information</p>

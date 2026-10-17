@@ -72,9 +72,22 @@ export default function KoboFormDetailPage() {
           <Link className="project-back-link" to="/community-map">← Community map</Link>
 
           {loading && (
-            <div className="kobo-form-feedback" role="status">
-              <p className="eyebrow">Loading form</p>
-              <h1>One moment.</h1>
+            <div className="kobo-form-loading" role="status" aria-label="Loading form details">
+              <span className="kobo-form-loading-announcement">Loading form details…</span>
+              <div className="kobo-form-loading-hero" aria-hidden="true">
+                <span className="kobo-form-skeleton kobo-form-skeleton-status" />
+                <div className="kobo-form-loading-copy">
+                  <span className="kobo-form-skeleton kobo-form-skeleton-kicker" />
+                  <span className="kobo-form-skeleton kobo-form-skeleton-title" />
+                  <span className="kobo-form-skeleton kobo-form-skeleton-title kobo-form-skeleton-title-short" />
+                  <span className="kobo-form-skeleton kobo-form-skeleton-caption" />
+                </div>
+              </div>
+              <div className="kobo-form-loading-panel" aria-hidden="true">
+                <span className="kobo-form-skeleton kobo-form-skeleton-kicker" />
+                <span className="kobo-form-skeleton kobo-form-skeleton-description" />
+                <span className="kobo-form-skeleton kobo-form-skeleton-description kobo-form-skeleton-description-short" />
+              </div>
             </div>
           )}
 
@@ -88,18 +101,28 @@ export default function KoboFormDetailPage() {
 
           {!loading && form && (
             <>
-              <header className="kobo-form-header">
-                <div>
+              <header className="kobo-form-hero">
+                <img
+                  className="kobo-form-hero-image"
+                  src="/nature.jpg"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <div className="kobo-form-hero-content">
                   <p className="eyebrow">Take part with YouthAct</p>
                   <h1>{form.title}</h1>
+                  <p className="kobo-form-hero-caption">
+                    Your observations help build a clearer picture of local needs.
+                  </p>
                 </div>
                 <span className={`kobo-form-status${form.active ? '' : ' is-inactive'}`}>
+                  <span className="kobo-form-status-dot" aria-hidden="true" />
                   {form.active ? 'Open for responses' : 'Not currently accepting responses'}
                 </span>
               </header>
 
               <div className="kobo-form-intro">
-                <div>
+                <div className="kobo-form-intro-copy">
                   <p className="eyebrow">About this form</p>
                   <p className="kobo-form-description">
                     {form.description || 'Share what you have noticed and help build a clearer picture of local needs.'}
@@ -112,7 +135,8 @@ export default function KoboFormDetailPage() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Participate in the survey <span aria-hidden="true">↗</span>
+                    <span>Participate in the survey</span>
+                    <span aria-hidden="true">↗</span>
                   </a>
                 )}
                 {form.active && !form.participationUrl && (
@@ -121,77 +145,6 @@ export default function KoboFormDetailPage() {
                   </p>
                 )}
               </div>
-
-              <section className="kobo-submissions" aria-labelledby="kobo-submissions-heading">
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">From the community</p>
-                    <h2 id="kobo-submissions-heading">Submitted observations.</h2>
-                  </div>
-                  <p className="body-copy">
-                    Approved observations shared through this form. Personal contact details are not displayed.
-                  </p>
-                </div>
-
-                {submissionsLoading && (
-                  <p className="kobo-form-empty" role="status">Loading approved observations…</p>
-                )}
-                {!submissionsLoading && currentSubmissionResult?.error && (
-                  <p className="kobo-form-empty" role="alert">
-                    Community submissions could not be loaded. {currentSubmissionResult.error}
-                  </p>
-                )}
-                {!submissionsLoading && !currentSubmissionResult?.error && submissions.length === 0 && (
-                  <p className="kobo-form-empty">There are no approved observations to show yet.</p>
-                )}
-                {!submissionsLoading && !currentSubmissionResult?.error && submissions.length > 0 && (
-                  <div className="kobo-submission-list">
-                    {submissions.map((report) => (
-                      <article className="kobo-submission-card" key={report.id}>
-                        <div className="kobo-submission-card-header">
-                          <p className="eyebrow">{report.township}</p>
-                          <span className={`kobo-severity kobo-severity-${report.severity}`}>
-                            {report.severity}
-                          </span>
-                        </div>
-                        <h3>{report.issueType}</h3>
-                        <p className="kobo-submission-date">
-                          Observed {new Date(report.observationDate).toLocaleDateString()}
-                        </p>
-                        {report.description && <p className="kobo-submission-description">{report.description}</p>}
-                        {report.verified && <span className="verified-label">Verified</span>}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="kobo-questions" aria-labelledby="kobo-questions-heading">
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">What we will ask</p>
-                    <h2 id="kobo-questions-heading">A few questions.<br /><em>A bigger picture.</em></h2>
-                  </div>
-                  <p className="body-copy">
-                    Your answers help us understand experiences and priorities in the community.
-                  </p>
-                </div>
-                {form.questions.length > 0 ? (
-                  <ol className="kobo-question-list">
-                    {form.questions.map((question, index) => (
-                      <li className="kobo-question-card" key={`${question.name}-${index}`}>
-                        <span className="kobo-question-number">{String(index + 1).padStart(2, '0')}</span>
-                        <div>
-                          <h3>{question.label}</h3>
-                          <p>{question.type}{question.required ? ' · Required' : ''}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="kobo-form-empty">Question details are not available for this form.</p>
-                )}
-              </section>
             </>
           )}
         </section>

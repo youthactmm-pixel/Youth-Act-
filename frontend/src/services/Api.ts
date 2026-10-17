@@ -38,8 +38,6 @@ export type StoryModel = {
   status: 'active' | 'draft'
 }
 
-export type StoryCreateInput = Omit<StoryModel, 'id'>
-
 export type KoboFormQuestion = {
   name: string
   label: string
@@ -47,11 +45,24 @@ export type KoboFormQuestion = {
   required: boolean
 }
 
+export type KoboIssueChoice = {
+  value: string
+  label: string
+}
+
+export type KoboSection3OptionGroup = {
+  questionName: string
+  questionLabel: string
+  choices: KoboIssueChoice[]
+}
+
 export type KoboFormDetails = {
   id: string
   title: string
   description: string
   questions: KoboFormQuestion[]
+  issueTypeChoices: KoboIssueChoice[]
+  section3Options: KoboSection3OptionGroup[]
   participationUrl: string | null
   active: boolean
 }
@@ -60,6 +71,7 @@ export type ClimateReport = {
   id: string
   township: string
   issueType: string
+  issueTypes?: string[]
   observationDate: string
   latitude: number
   longitude: number
@@ -216,60 +228,6 @@ export async function fetchGoogleSheetTowns(): Promise<TownModel[]> {
   })
 }
 
-export async function createTown(town: string): Promise<TownModel> {
-  return withBackendLoading(async () => {
-    const response = await fetch(`${API_BASE_URL}/api/towns`, {
-      method: 'POST',
-      headers: jsonHeaders(),
-      body: JSON.stringify({ town }),
-    })
-
-    if (!response.ok) {
-      const errorBody = await response
-        .json()
-        .catch(() => null) as {
-          message?: string
-          error?: string
-        } | null
-
-      throw new Error(
-        errorBody?.message ??
-        errorBody?.error ??
-        'Unable to create town'
-      )
-    }
-
-    return response.json() as Promise<TownModel>
-  })
-}
-
-export async function updateTown(townId: string, town: string): Promise<TownModel> {
-  return withBackendLoading(async () => {
-    const response = await fetch(`${API_BASE_URL}/api/towns/${townId}`, {
-      method: 'PUT',
-      headers: jsonHeaders(),
-      body: JSON.stringify({ town }),
-    })
-
-    if (!response.ok) {
-      const errorBody = await response
-        .json()
-        .catch(() => null) as {
-          message?: string
-          error?: string
-        } | null
-
-      throw new Error(
-        errorBody?.message ??
-        errorBody?.error ??
-        'Unable to update town'
-      )
-    }
-
-    return response.json() as Promise<TownModel>
-  })
-}
-
 // =========================
 // Card API
 // =========================
@@ -280,28 +238,6 @@ export async function fetchStories(): Promise<StoryModel[]> {
     throw new Error('Unable to load stories')
   }
   return response.json() as Promise<StoryModel[]>
-}
-
-export async function fetchAdminStories(): Promise<StoryModel[]> {
-  const response = await fetch(`${API_BASE_URL}/api/admin/stories`, {
-    headers: getAuthHeaders(),
-  })
-  if (!response.ok) {
-    throw new Error(await readApiError(response, 'Unable to load stories'))
-  }
-  return response.json() as Promise<StoryModel[]>
-}
-
-export async function createStory(story: StoryCreateInput): Promise<StoryModel> {
-  const response = await fetch(`${API_BASE_URL}/api/admin/stories`, {
-    method: 'POST',
-    headers: jsonHeaders(),
-    body: JSON.stringify(story),
-  })
-  if (!response.ok) {
-    throw new Error(await readApiError(response, 'Unable to create story'))
-  }
-  return response.json() as Promise<StoryModel>
 }
 
 export async function fetchCards(showLoading = true): Promise<CardModel[]> {

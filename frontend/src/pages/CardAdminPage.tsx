@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { CheckCircle2 } from 'lucide-react'
+import { FormattedText, RichTextArea } from '@/components/RichText'
 import {
   createCard,
   fetchCards,
@@ -11,7 +13,6 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardImage,
   CardTitle,
 } from '@/components/ui/card'
@@ -23,6 +24,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 type CardAdminPageProps = {
   onBack: () => void
@@ -78,6 +89,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
   const [processingImages, setProcessingImages] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [townLoadError, setTownLoadError] = useState('')
+  const [programCreatedOpen, setProgramCreatedOpen] = useState(false)
 
   useEffect(() => {
     fetchTowns()
@@ -139,7 +151,8 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
         setMessage('Card updated successfully.')
       } else {
         await createCard(payload)
-        setMessage('Card created successfully.')
+        setMessage('')
+        setProgramCreatedOpen(true)
       }
 
       setForm(emptyForm)
@@ -240,15 +253,15 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
                 {towns.map((town) => <option key={town.id} value={town.town}>{town.town}</option>)}
               </select>
               {townLoadError && <small className="field-error" role="alert">{townLoadError}</small>}
-              {!townLoadError && towns.length === 0 && <small>Add a town before assigning a project.</small>}
+              {!townLoadError && towns.length === 0 && <small>No towns are available to assign to this project.</small>}
             </label>
           </div>
 
           <label className="field field-full">
             <span>Description</span>
-            <textarea
+            <RichTextArea
               value={form.description}
-              onChange={(event) => setForm({ ...form, description: event.target.value })}
+              onChange={(description) => setForm({ ...form, description })}
               placeholder="Card description"
               required
             />
@@ -366,7 +379,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
                         <span>{card.category}</span>
                       </div>
                       <CardTitle className="existing-card-title">{card.title}</CardTitle>
-                      <CardDescription className="existing-card-description">{card.description}</CardDescription>
+                      <FormattedText as="div" className="existing-card-description" text={card.description} />
                       <button className="existing-card-edit" type="button" onClick={() => handleEdit(card)}>
                         Edit card <span aria-hidden="true">↗</span>
                       </button>
@@ -424,6 +437,23 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
           </>
         )}
       </section>
+
+      <AlertDialog open={programCreatedOpen} onOpenChange={setProgramCreatedOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="text-green-700 bg-green-100">
+              <CheckCircle2 aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Program created successfully</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your program has been added to the content library.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Done</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

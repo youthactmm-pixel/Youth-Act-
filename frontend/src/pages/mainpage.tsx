@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card"
 
 import Threads from '@/components/Threads'
+import { FormattedText } from '@/components/RichText'
 import { CardModel } from '@/services/Api'
 import { fetchCards } from '@/services/Api'
 import TopNavbar from '@/components/ui/topnavbar'
@@ -115,7 +116,7 @@ export function HomePage() {
                             </CardImage>
                             <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
                             <CardDescription className="text-sm leading-6 text-slate-600">
-                              {card.description}
+                              <FormattedText text={card.description} />
                             </CardDescription>
                             <Link className="text-link" to={`/project/${card.id}/projectdetailpage`} aria-label={`Learn about ${card.title}`}>Learn more <span>↗</span></Link>
                           </CardContent>

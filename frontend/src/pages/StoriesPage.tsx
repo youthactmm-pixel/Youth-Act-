@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ArrowDown, ArrowRight } from 'lucide-react'
+import { FormattedText } from '@/components/RichText'
 import TopNavbar from '@/components/ui/topnavbar'
 import Footer from '@/components/ui/footer'
 import {
   fetchClimateReports,
-  fetchStories,
   getPublicClimateReportImageUrl,
   type ClimateReport,
-  type StoryModel,
 } from '@/services/Api'
 
 export default function StoriesPage() {
   const [reports, setReports] = useState<ClimateReport[]>([])
   const [reportsError, setReportsError] = useState('')
   const [reportsLoading, setReportsLoading] = useState(true)
-
   useEffect(() => {
     const controller = new AbortController()
 
@@ -32,18 +31,68 @@ export default function StoriesPage() {
     return () => controller.abort()
   }, [])
 
+  function displayIssueType(issueType: string) {
+    if (!issueType) return 'Not specified'
+
+    return issueType
+      .split(/[|,]/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) =>
+        value
+          .replace(/[_-]+/g, ' ')
+          .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+      )
+      .join(', ')
+  }
+
+  function reportIssueTypes(report: ClimateReport) {
+    const issueTypes = Array.isArray(report.issueType)
+      ? report.issueType
+      : typeof report.issueType === 'string'
+        ? report.issueType.split(/[|,]/)
+        : []
+
+    return issueTypes
+      .map((value) => String(value).trim())
+      .filter(Boolean)
+  }
+
+  function issueTypeLabel(choice: any): import('react').ReactNode {
+    return displayIssueType(String(choice ?? ''))
+  }
+
   return (
     <div className="app-shell inner-page">
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
       <main>
-        <section className="page-hero shell">
-          <div>
+        <section className="stories-hero shell">
+          <div className="stories-hero-copy">
             <p className="eyebrow">From the community</p>
-            <h1>Stories that<br /><em>keep us moving.</em></h1>
+            <h1>Real stories.<br /><em>Local action.</em></h1>
+            <p className="stories-hero-intro">
+              Meet the people, places, and observations inspiring a more
+              resilient future for our communities.
+            </p>
+            <button
+              className="stories-hero-link"
+              type="button"
+              onClick={() => document.getElementById('community-reports')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Read community reports <ArrowDown size={17} aria-hidden="true" />
+            </button>
           </div>
-          <p className="page-hero-copy">Every action starts somewhere. These are the people, questions, and small victories shaping the YouthAct community.</p>
+          <div className="stories-hero-visual">
+            <img src="/nature.jpg" alt="Green landscape reflecting the communities caring for their environment" />
+            <div className="stories-hero-note">
+              <span>YOUTHACT · COMMUNITY VOICES</span>
+              <strong>Every voice<br />can move us forward.</strong>
+              <ArrowRight size={19} aria-hidden="true" />
+            </div>
+            <span className="stories-hero-caption">Stories rooted in our communities.</span>
+          </div>
         </section>
-        <section className="stories-reports shell" aria-labelledby="stories-reports-title">
+        <section className="stories-reports shell" id="community-reports" aria-labelledby="stories-reports-title">
           <div className="stories-reports-heading">
             <div>
               <p className="eyebrow">Community field reports</p>
@@ -83,13 +132,16 @@ export default function StoriesPage() {
                       </span>
                       {report.verified && <span className="verified-label">Verified</span>}
                     </div>
-                    <p className="stories-report-location">
-                      {report.township} · {new Date(report.observationDate).toLocaleDateString()}
-                    </p>
-                    <h3>{report.issueType}</h3>
-                    <p className={`stories-report-description${report.description ? '' : ' is-empty'}`}>
-                      {report.description || 'No public description was provided.'}
-                    </p>
+                  <ul className="community-observation-issues" aria-label={`Issue type: ${displayIssueType(report.issueType)}`}>
+                    {reportIssueTypes(report).slice(0, 1).map((choice) => (
+                      <li key={`${report.id}-${choice}`}>{issueTypeLabel(choice)}</li>
+                    ))}
+                  </ul>
+                    <FormattedText
+                      as="p"
+                      className={`stories-report-description${report.description ? '' : ' is-empty'}`}
+                      text={report.description || 'No public description was provided.'}
+                    />
                     <span className="stories-report-read-more">View report details →</span>
                   </div>
                 </Link>

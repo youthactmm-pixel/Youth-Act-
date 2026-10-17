@@ -154,7 +154,8 @@ const climateReportSchema = new Schema(
   {
     externalId: { type: String, unique: true, sparse: true, trim: true },
     township: { type: String, trim: true, maxlength: 120, default: 'Unspecified' },
-    issueType: { type: String, required: true, trim: true, maxlength: 120 },
+    issueType: { type: String, required: true, trim: true, maxlength: 1000 },
+    issueTypes: { type: [String], default: [] },
     observationDate: { type: Date, required: true },
     latitude: { type: Number, required: true, min: -90, max: 90 },
     longitude: { type: Number, required: true, min: -180, max: 180 },

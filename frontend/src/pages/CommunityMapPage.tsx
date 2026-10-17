@@ -2,15 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CircleMarker, GeoJSON, MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
 import { divIcon, type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
-import { ArrowLeft, CalendarDays, CloudSun, Droplets, FileText, MapPin, RefreshCw, Thermometer, Wind } from 'lucide-react'
+import { ArrowLeft, CloudSun, Droplets, FileText, MapPin, RefreshCw, Thermometer, Wind } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import TopNavbar from '@/components/ui/topnavbar'
-import { Calendar } from '@/components/ui/calendar'
-import { Button } from '@/components/ui/button'
-import { fetchCards, fetchClimateReports, fetchWeatherStatus, getPublicClimateReportImageUrl, type CardModel, type ClimateReport, type ClimateReportsResponse, type WeatherStatusResponse } from '@/services/Api'
+import { FormattedText } from '@/components/RichText'
+import { fetchCards, fetchClimateReports, fetchKoboFormDetails, fetchWeatherStatus, getPublicClimateReportImageUrl, type CardModel, type ClimateReport, type ClimateReportsResponse, type KoboFormDetails, type KoboIssueChoice, type WeatherStatusResponse } from '@/services/Api'
 
 const DEFAULT_CENTER: LatLngExpression = [19, 96]
 const DEFAULT_WEATHER_LOCATION = [16.8661, 96.1951] as const
+const KOBO_CLIMATE_FORM_ID = 'asVctXHHGzNBbQ8smxu4Ro'
 const severityColors: Record<ClimateReport['severity'], string> = {
   low: '#31865b',
   moderate: '#d39b20',
@@ -93,72 +93,30 @@ function readableDate(date: string) {
   return new Date(date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function dateFromInput(value: string) {
-  if (!value) return undefined
-  const [year, month, day] = value.split('-').map(Number)
-  return new Date(year, month - 1, day)
+function normalizeIssueType(issue: string) {
+  return issue.trim().toLocaleLowerCase().replace(/_+/g, ' ').replace(/\s+/g, ' ')
 }
 
-function dateToInput(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+function issueTypeChoices(issue: string) {
+  const trimmed = issue.trim()
+  if (!trimmed) return []
+  const hasKoboChoiceCodes = /^[\w-]+(?:\s+[\w-]+)*$/u.test(trimmed) && trimmed.includes('_')
+  const choices = hasKoboChoiceCodes ? trimmed.split(/\s+/) : trimmed.split(/\s*,\s*/)
+  return choices.map((choice) => choice.trim().replace(/^_+|_+$/g, '')).filter(Boolean)
 }
 
-function DateFilter({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const selectedDate = dateFromInput(value)
+function issueTypeLabel(choice: string) {
+  if (!/^[a-z0-9_-]+$/i.test(choice) || !choice.includes('_')) return choice
+  const readable = choice.replace(/_+/g, ' ').trim()
+  return readable.charAt(0).toLocaleUpperCase() + readable.slice(1)
+}
 
-  return (
-    <div className="community-date-filter">
-      <span>{label}</span>
-      <Button
-        type="button"
-        variant="outline"
-        className="community-date-trigger"
-        aria-label={`${label}${selectedDate ? `: ${selectedDate.toLocaleDateString()}` : ''}`}
-        aria-expanded={open}
-        onClick={() => setOpen((isOpen) => !isOpen)}
-      >
-        <CalendarDays size={15} />
-        {selectedDate
-          ? selectedDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-          : 'Choose date'}
-      </Button>
-      {open && (
-        <div className="community-date-popover">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={(date) => {
-              onChange(date ? dateToInput(date) : '')
-              setOpen(false)
-            }}
-            autoFocus
-          />
-          {value && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="community-date-clear"
-              onClick={() => onChange('')}
-            >
-              Clear date
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
-  )
+function reportIssueTypes(report: ClimateReport) {
+  return report.issueTypes?.length ? report.issueTypes : issueTypeChoices(report.issueType)
+}
+
+function displayIssueType(issue: string) {
+  return issueTypeChoices(issue).map(issueTypeLabel).join(', ')
 }
 
 export default function CommunityMapPage() {
@@ -171,8 +129,10 @@ export default function CommunityMapPage() {
   const [township, setTownship] = useState('')
   const [issueType, setIssueType] = useState('')
   const [severity, setSeverity] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [koboIssueChoices, setKoboIssueChoices] = useState<KoboIssueChoice[]>([])
+  const [koboSection3Options, setKoboSection3Options] = useState<KoboFormDetails['section3Options']>([])
+  const [koboIssueChoicesError, setKoboIssueChoicesError] = useState('')
+  const [koboIssueChoicesLoading, setKoboIssueChoicesLoading] = useState(true)
   const [projects, setProjects] = useState<CardModel[]>([])
   const [projectsError, setProjectsError] = useState('')
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -239,6 +199,48 @@ export default function CommunityMapPage() {
   }, [refreshReports])
 
   useEffect(() => {
+    const controller = new AbortController()
+    fetchKoboFormDetails(KOBO_CLIMATE_FORM_ID, controller.signal)
+      .then((form) => {
+        const hasValidChoice = (choice: { value: string; label: string }) =>
+          choice &&
+          typeof choice.value === 'string' &&
+          typeof choice.label === 'string'
+        const hasValidSection3Options =
+          Array.isArray(form.section3Options) &&
+          form.section3Options.every((group) =>
+            group &&
+            typeof group.questionName === 'string' &&
+            typeof group.questionLabel === 'string' &&
+            Array.isArray(group.choices) &&
+            group.choices.every(hasValidChoice)
+          )
+        const hasValidIssueChoices =
+          Array.isArray(form.issueTypeChoices) && form.issueTypeChoices.every(hasValidChoice)
+        if (!hasValidSection3Options || !hasValidIssueChoices) {
+          throw new Error(
+            'The Kobo metadata API is outdated. Deploy the latest backend to load Section 3 options.'
+          )
+        }
+        setKoboIssueChoices(form.issueTypeChoices)
+        setKoboSection3Options(form.section3Options)
+        setKoboIssueChoicesError('')
+      })
+      .catch((fetchError: unknown) => {
+        if (!controller.signal.aborted) {
+          setKoboIssueChoicesError(
+            fetchError instanceof Error ? fetchError.message : 'Section 3 options could not be loaded.'
+          )
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setKoboIssueChoicesLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
     fetchCards(false)
       .then(setProjects)
       .catch((fetchError: unknown) => {
@@ -248,16 +250,14 @@ export default function CommunityMapPage() {
   }, [])
 
   const townships = useMemo(() => [...new Set(reports.map((report) => report.township))].sort(), [reports])
-  const issueTypes = useMemo(() => [...new Set(reports.map((report) => report.issueType))].sort(), [reports])
+  const issueChoices = Array.isArray(koboIssueChoices) ? koboIssueChoices : []
+  const selectedIssueType = normalizeIssueType(issueType)
   const filteredReports = useMemo(() => reports.filter((report) => {
-    const date = report.observationDate.slice(0, 10)
     return (!township || report.township === township)
-      && (!issueType || report.issueType === issueType)
+      && (!selectedIssueType || reportIssueTypes(report).some((choice) => normalizeIssueType(choice) === selectedIssueType))
       && (!severity || report.severity === severity)
-      && (!dateFrom || date >= dateFrom)
-      && (!dateTo || date <= dateTo)
-  }), [reports, township, issueType, severity, dateFrom, dateTo])
-  const hasActiveFilters = Boolean(township || issueType || severity || dateFrom || dateTo)
+  }), [reports, township, selectedIssueType, severity])
+  const hasActiveFilters = Boolean(township || issueType || severity)
   const riskZones = useMemo(
     () => hasActiveFilters || !serverRiskZones ? buildRiskZones(filteredReports) : serverRiskZones,
     [filteredReports, hasActiveFilters, serverRiskZones]
@@ -311,9 +311,14 @@ export default function CommunityMapPage() {
 
         <section className="community-filters" aria-label="Filter community reports">
           <label><span>Township</span><select value={township} onChange={(event) => setTownship(event.target.value)}><option value="">All townships</option>{townships.map((town) => <option key={town}>{town}</option>)}</select></label>
-          <label><span>Issue type</span><select value={issueType} onChange={(event) => setIssueType(event.target.value)}><option value="">All issues</option>{issueTypes.map((issue) => <option key={issue}>{issue}</option>)}</select></label>
-          <DateFilter label="From date" value={dateFrom} onChange={setDateFrom} />
-          <DateFilter label="To date" value={dateTo} onChange={setDateTo} />
+          <label>
+            <select aria-label="Q8. What environmental problem did you notice?" value={issueType} onChange={(event) => setIssueType(event.target.value)}>
+              <option value="">Show all</option>
+              {issueChoices.map(({ value, label }) => <option key={value} value={label}>{label}</option>)}
+            </select>
+            {koboIssueChoicesLoading && <small role="status">Loading Section 3 options…</small>}
+            {koboIssueChoicesError && <small className="field-error" role="status">{koboIssueChoicesError}</small>}
+          </label>
           <label><span>Severity</span><select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="">All levels</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
         </section>
 
@@ -348,19 +353,19 @@ export default function CommunityMapPage() {
                 >
                   <Popup>
                     <div className="community-report-popup">
-                      <strong>{report.issueType}</strong>
+                      <strong>{displayIssueType(report.issueType)}</strong>
                       {report.imageUrl && (
                         <img
                           className="community-report-popup-image"
                           src={getPublicClimateReportImageUrl(report.imageUrl)}
-                          alt={`Submitted photo for ${report.issueType}`}
+                          alt={`Submitted photo for ${displayIssueType(report.issueType)}`}
                           onError={(event) => { event.currentTarget.hidden = true }}
                         />
                       )}
                       <span>{report.township} · {readableDate(report.observationDate)}</span>
                       <span>Severity: {report.severity}</span>
                       <span className={report.verified ? 'verified-label' : 'unverified-label'}>{report.verified ? 'Verified report' : 'Unverified report'}</span>
-                      <p>{report.description}</p>
+                      <FormattedText as="p" text={report.description ?? ''} />
                     </div>
                   </Popup>
                 </CircleMarker>
@@ -451,13 +456,23 @@ export default function CommunityMapPage() {
               {Object.entries(riskColors).map(([tier, color]) => <div className="community-legend-row" key={tier}><span className="legend-square" style={{ backgroundColor: color }} />{tier[0].toUpperCase() + tier.slice(1)}</div>)}
               <p className="community-methodology">Each 0.05° grid cell (~5 km) sums approved report severity points: low 1, moderate 2, high 3, critical 4. Scores 1–3 = watch, 4–7 = moderate, 8+ = high. This is a screening index to guide assessment, not an official hazard boundary or forecast.</p>
               <p className="community-legend-section">Issue categories</p>
-              <p className="community-category-note">{issueTypes.length ? issueTypes.join(' · ') : 'Categories appear when approved reports are available.'}</p>
+              <p className="community-category-note">
+                {koboIssueChoicesLoading
+                  ? 'Loading Section 3 options…'
+                  : koboIssueChoicesError
+                    ? koboIssueChoicesError
+                    : koboSection3Options.length
+                      ? koboSection3Options
+                        .map(({ questionLabel, choices }) => `${questionLabel}: ${choices.map(({ label }) => label).join(', ')}`)
+                        .join(' · ')
+                      : 'No Section 3 options are configured.'}
+              </p>
             </div>
             <div className="community-report-list">
               {loading && reports.length === 0 ? <p className="community-empty">Loading approved reports…</p> : filteredReports.length === 0 ? <p className="community-empty">No approved reports match these filters.</p> : filteredReports.slice(0, 30).map((report) => (
                 <article className="community-report-item" key={report.id}>
                   <span className="community-report-dot" style={{ backgroundColor: severityColors[report.severity] }} />
-                  <div><strong>{report.issueType}</strong><p>{report.township} · {readableDate(report.observationDate)}</p><span className={report.verified ? 'verified-label' : 'unverified-label'}>{report.verified ? 'Verified' : 'Unverified'}</span></div>
+                  <div><strong>{displayIssueType(report.issueType)}</strong><p>{report.township} · {readableDate(report.observationDate)}</p><span className={report.verified ? 'verified-label' : 'unverified-label'}>{report.verified ? 'Verified' : 'Unverified'}</span></div>
                 </article>
               ))}
               {filteredReports.length > 30 && <p className="community-empty">Showing 30 of {filteredReports.length} reports; all reports remain visible on the map.</p>}
@@ -487,7 +502,7 @@ export default function CommunityMapPage() {
                     <img
                       className="community-observation-image"
                       src={getPublicClimateReportImageUrl(report.imageUrl)}
-                      alt={`Submitted photo for ${report.issueType} in ${report.township}`}
+                      alt={`Submitted photo for ${displayIssueType(report.issueType)} in ${report.township}`}
                       loading="lazy"
                       onError={(event) => { event.currentTarget.hidden = true }}
                     />
@@ -498,10 +513,15 @@ export default function CommunityMapPage() {
                     </span>
                     {report.verified && <span className="verified-label">Verified</span>}
                   </div>
-                  <h3>{report.issueType}</h3>
+                  <h3 className="community-observation-issues-label">Issue type</h3>
+                  <ul className="community-observation-issues" aria-label={`Issue type: ${displayIssueType(report.issueType)}`}>
+                    {reportIssueTypes(report).slice(0, 1).map((choice) => (
+                      <li key={`${report.id}-${choice}`}>{issueTypeLabel(choice)}</li>
+                    ))}
+                  </ul>
                   <p className="community-observation-location">{report.township} · {readableDate(report.observationDate)}</p>
                   {report.description ? (
-                    <p className="community-observation-description">{report.description}</p>
+                    <FormattedText as="p" className="community-observation-description" text={report.description} />
                   ) : (
                     <p className="community-observation-description is-empty">No public description was added.</p>
                   )}

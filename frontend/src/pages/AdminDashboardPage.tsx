@@ -4,11 +4,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
-  BookOpenText,
   Home,
   LayoutDashboard,
   LogOut,
-  MapPinned,
   Plus,
   ShieldCheck,
 } from 'lucide-react'
@@ -20,8 +18,6 @@ type AdminDashboardPageProps = {
 const navigationItems = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboard, end: true },
   { label: 'Create card', to: '/admin/cards', icon: Plus },
-  { label: 'Create story', to: '/admin/stories', icon: BookOpenText },
-  { label: 'Manage towns', to: '/admin/towns', icon: MapPinned },
   { label: 'Review reports', to: '/admin/reports', icon: ClipboardCheck },
 ]
 

@@ -11,7 +11,9 @@ Configure these variables in the **backend** deployment environment (never in Vi
 
 The backend performs an initial sync and repeats every 60 seconds. The authenticated
 `POST /api/admin/climate/sync` endpoint is also available for an immediate sync.
-The sync reads Kobo's paginated submissions API, imports only issue type, township,
+The sync reads Kobo's paginated submissions API, resolves individual “Section 3 —
+Identify the problem” choice IDs to their Kobo labels, and imports only issue type,
+township,
 observation date, GPS, severity, a text description, image attachment metadata, and
 photo-publication consent; it does not persist raw submissions, names, or contact
 fields. Kobo submissions whose validation
@@ -43,6 +45,10 @@ never sent to the browser. `KOBO_DETAIL_ASSET_UID` optionally overrides the form
 UID (the page link and the default UID use `asVctXHHGzNBbQ8smxu4Ro`). The backend uses
 `KOBO_API_TOKEN` and `KOBO_BASE_URL` for the request. A participation link is shown
 only when the form is deployed and Kobo provides a deployment URL or identifier.
+The metadata response includes `issueTypeChoices` for the map filter and
+`section3Options`, grouped by question, for displaying every configured option
+in Section 3. Deploy the backend after changing this parser; an older deployed
+backend will not include these response fields.
 Requests using the previous detail-page UID `14afc072f186fd92a83fce2d2161c98897244df1`
 are mapped to the current form for backwards compatibility.
 
@@ -55,8 +61,7 @@ it must match the form UID in the page URL for submissions to appear.
 ## Public map and risk index
 
 `GET /api/climate/reports` returns approved reports and GeoJSON risk polygons.
-The map also refreshes its public data every 60 seconds. Reports are filterable by
-township, issue, observation date, and severity.
+The map also refreshes its public data every 60 seconds. Reports are filterable by township, individual issue choice, and severity.
 
 The GIS layer is a report-derived 0.05-degree grid (~5 km): each approved report
 contributes 1 point for low, 2 for moderate, 3 for high, or 4 for critical severity.
