@@ -37,6 +37,7 @@ export function HomePage() {
   const [whoWeAreOpen, setWhoWeAreOpen] = useState(false); // State for "Who We Are" dropdown menu
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // State for mobile menu visibility
 
+  // ပင်မစာမျက်နှာ carousel အတွက် ပရိုဂရမ်ကတ်များကိုယူပြီး မအောင်မြင်လျှင် ဗလာစာရင်းပြသည်။
   const loadPrograms = () => {
     fetchCards(false)
       .then((data) => {
@@ -49,6 +50,7 @@ export function HomePage() {
     loadPrograms()
   }, [])
 
+  // မိတ်ဆက်၊ ပရိုဂရမ်ကတ်များနှင့် footer ပါဝင်သော ပင်မစာမျက်နှာအကြောင်းအရာကို စုစည်းသည်။
   const renderHomePage = () => (
     <main>
         <div className="hero-threads fade-in-threads">
@@ -115,7 +117,7 @@ export function HomePage() {
                               ))}
                             </CardImage>
                             <CardTitle className="text-xl font-semibold text-slate-900">{card.title}</CardTitle>
-                            <CardDescription className="text-sm leading-6 text-slate-600">
+                            <CardDescription className="home-program-description text-sm leading-6 text-slate-600">
                               <FormattedText text={card.description} />
                             </CardDescription>
                             <Link className="text-link" to={`/project/${card.id}/projectdetailpage`} aria-label={`Learn about ${card.title}`}>Learn more <span>↗</span></Link>

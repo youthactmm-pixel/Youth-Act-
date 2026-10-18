@@ -15,6 +15,7 @@ type AdminDashboardPageProps = {
   onLogout: () => void
 }
 
+// Navigation တစ်နေရာတည်းမှ sidebar link များနှင့် လက်ရှိစာမျက်နှာခေါင်းစဉ်ကို ထုတ်ပေးသည်။
 const navigationItems = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboard, end: true },
   { label: 'Create card', to: '/admin/cards', icon: Plus },
@@ -22,8 +23,10 @@ const navigationItems = [
 ]
 
 export default function AdminDashboardPage({ onLogout }: AdminDashboardPageProps) {
+  // collapsed state က sidebar အကျယ်၊ label များနှင့် icon-only navigation ကို ထိန်းချုပ်သည်။
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
+  // လမ်းကြောင်းနှင့် navigationItems ကို နှိုင်းယှဉ်ကာ topbar ခေါင်းစဉ်ကို ရွေးသည်။
   const activeLabel = navigationItems.find((item) =>
     item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)
   )?.label ?? 'Admin'
@@ -93,6 +96,7 @@ export default function AdminDashboardPage({ onLogout }: AdminDashboardPageProps
             <h1>{activeLabel}</h1>
           </div>
         </header>
+        {/* Child admin route တစ်ခုစီ၏ အကြောင်းအရာကို ဤနေရာတွင် ထည့်သွင်းပြသည်။ */}
         <div className="admin-main-content">
           <Outlet />
         </div>

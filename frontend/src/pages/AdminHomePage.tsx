@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, ClipboardCheck, ExternalLink, Plus, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, ExternalLink, ShieldCheck } from 'lucide-react'
 import { FormattedText } from '@/components/RichText'
 import {
   fetchCards,
@@ -10,26 +10,8 @@ import {
   type ClimateReport,
 } from '@/services/Api'
 
-const adminSections = [
-  {
-    title: 'Create and manage cards',
-    description: 'Publish and update program cards, descriptions, and images shown on the website.',
-    href: '/admin/cards',
-    action: 'Open card management',
-    icon: Plus,
-    accent: 'admin-dashboard-accent-coral',
-  },
-  {
-    title: 'Review community reports',
-    description: 'Review incoming climate observations and approve safe descriptions for the public map.',
-    href: '/admin/reports',
-    action: 'Open report queue',
-    icon: ClipboardCheck,
-    accent: 'admin-dashboard-accent-gold',
-  },
-]
-
 export default function AdminHomePage() {
+  // Admin dashboard မှာ ပြမယ့် card/report data နဲ့ fetch လုပ်နေစဉ်၊ error ဖြစ်စဉ်ကို သီးခြားထိန်းထားသည်။
   const [cards, setCards] = useState<CardModel[]>([])
   const [isLoadingCards, setIsLoadingCards] = useState(true)
   const [cardsError, setCardsError] = useState('')
@@ -38,6 +20,7 @@ export default function AdminHomePage() {
   const [reportsError, setReportsError] = useState('')
 
   useEffect(() => {
+    // Website project cards ကို တစ်ကြိမ်ရယူပြီး state ပြောင်းလဲမှုက card list UI ကို ပြန် render လုပ်စေသည်။
     fetchCards()
       .then(setCards)
       .catch((error: unknown) => {
@@ -47,6 +30,8 @@ export default function AdminHomePage() {
   }, [])
 
   useEffect(() => {
+    // Approved/public climate report များကို ရယူသည်။ Component ထွက်သွားလျှင် request ကို abort လုပ်ပြီး
+    // မလိုအပ်တော့သော response က state ကို ပြောင်းလဲခြင်း မဖြစ်စေပါ။
     const controller = new AbortController()
     fetchClimateReports(controller.signal)
       .then((data) => setReports(data.reports))
@@ -61,11 +46,35 @@ export default function AdminHomePage() {
     return () => controller.abort()
   }, [])
 
-  const statusCounts = useMemo(() => ({
-    total: cards.length,
-    active: cards.filter((card) => card.status === 'active').length,
-    draft: cards.filter((card) => card.status === 'draft').length,
-  }), [cards])
+  // Kobo ရဲ့ underscore/dash ပါတဲ့ code ကို လူဖတ်လို့ရအောင် အမည်ပုံစံပြောင်းပေးသည်။
+  function issueTypeLabel(choice: string) {
+    const readable = choice.replace(/[_-]+/g, ' ').trim()
+    return readable ? readable.charAt(0).toLocaleUpperCase() + readable.slice(1) : 'Not specified'
+  }
+
+  // API က issueTypes array မပေးထားတဲ့ အဟောင်း report များအတွက် issueType စာသားမှ type များကို ခွဲယူသည်။
+  function reportIssueTypes(report: ClimateReport) {
+    return report.issueTypes?.length
+      ? report.issueTypes
+      : report.issueType.split(/\s*,\s*/).filter(Boolean)
+  }
+
+  // Issue type တစ်ခုထက်ပိုပါက comma ဖြင့်ဖော်ပြပြီး alt/ARIA label တွင်ပါ ပြန်သုံးသည်။
+  function displayIssueType(issueType: string) {
+    return issueType.split(/\s*,\s*/).filter(Boolean).map(issueTypeLabel).join(', ') || 'Not specified'
+  }
+
+  // Observation date ကို browser locale အလိုက် ဖတ်ရလွယ်တဲ့ နေ့/လ/နှစ်ပုံစံ ပြောင်းပေးသည်။
+  function readableDate(observationDate: string) {
+    return new Date(observationDate).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  // Backend response ထဲ status မတူတဲ့ report ပါလာခဲ့ရင်တောင် approved report သာ dashboard မှာပြသည်။
+  const filteredReports = reports.filter((report) => report.status === 'approved')
 
   return (
     <section className="admin-dashboard-home">
@@ -81,6 +90,7 @@ export default function AdminHomePage() {
           </div>
         </header>
 
+        {/* Card များမပြမီ loading/error ကိုပြပြီး၊ data ရလာလျှင် project card များကို map ဖြင့် ဖန်တီးသည်။ */}
         {cardsError && <p className="admin-content-error" role="alert">{cardsError}</p>}
         {isLoadingCards ? (
           <p className="admin-content-empty" role="status">Loading cards and projects…</p>
@@ -91,6 +101,7 @@ export default function AdminHomePage() {
           </div>
         ) : (
           <div className="admin-content-list">
+            {/* Card တစ်ခုစီတွင် ပထမပုံ၊ အချက်အလက်နဲ့ ကြည့်ရန်/ပြင်ဆင်ရန် link များကို ချိတ်ဆက်ထားသည်။ */}
             {cards.map((card) => {
               const images = card.images?.length ? card.images : [card.image]
               return (
@@ -116,66 +127,66 @@ export default function AdminHomePage() {
         )}
       </section>
 
-      <section className="admin-content-section admin-report-section" aria-labelledby="admin-reports-title">
-        <header className="admin-content-heading">
-          <div>
-            <p className="eyebrow">Published Kobo submissions</p>
-            <h2 id="admin-reports-title">Community report cards</h2>
-            <p>Approved reports currently visible to the public.</p>
+      <section className="community-observations" aria-labelledby="community-observations-title">
+          <div className="community-observations-heading">
+            <div>
+              <p className="community-kicker">KOBO TOOLBOX · APPROVED SUBMISSIONS</p>
+              <h2 id="community-observations-title">Community climate observations</h2>
+              <p>Field observations shared through KoboToolbox and reviewed by the YouthAct team.</p>
+            </div>
+            <span>{filteredReports.length} {filteredReports.length === 1 ? 'observation' : 'observations'}</span>
           </div>
-          <Link className="admin-content-create" to="/admin/reports">
-            Review reports <ArrowUpRight size={15} />
-          </Link>
-        </header>
-
-        {reportsError && <p className="admin-content-error" role="alert">{reportsError}</p>}
-        {isLoadingReports ? (
-          <p className="admin-content-empty" role="status">Loading community reports…</p>
-        ) : reports.length === 0 ? (
-          <div className="admin-content-empty">
-            <p>No approved community reports are available yet.</p>
-            <Link to="/admin/reports">Open the report queue <ArrowUpRight size={15} /></Link>
-          </div>
-        ) : (
-          <div className="stories-report-grid admin-report-grid">
-            {reports.map((report) => (
-              <Link
-                className="stories-report-card"
-                key={report.id}
-                to={`/stories/reports/${encodeURIComponent(report.id)}`}
-                aria-label={`View details for ${report.issueType} report in ${report.township}`}
-              >
-                {report.imageUrl && (
-                  <img
-                    className="stories-report-image"
-                    src={getPublicClimateReportImageUrl(report.imageUrl)}
-                    alt=""
-                    loading="lazy"
-                  />
-                )}
-                <div className="stories-report-card-content">
-                  <div className="stories-report-card-meta">
-                    <span className={`stories-report-severity stories-report-severity-${report.severity}`}>
+          {/* Loading/error/empty အခြေအနေများကို ခွဲပြပြီး approved report များသာ အောက်တွင် စာရင်းပြသည်။ */}
+          {reportsError && <p className="admin-content-error" role="alert">{reportsError}</p>}
+          {isLoadingReports && reports.length === 0 ? (
+            <p className="community-observations-empty" role="status">Loading approved KoboToolbox observations…</p>
+          ) : filteredReports.length === 0 ? (
+            <p className="community-observations-empty">
+              No approved reports are available yet. New submissions appear here after admin review.
+            </p>
+          ) : (
+            <div className="community-observation-grid">
+              {/* UI မလေးစေရန် report အများဆုံး 30 ခုသာပြသည်။ issue/date helper များက card စာသားကို ပြင်ဆင်ပေးသည်။ */}
+              {filteredReports.slice(0, 30).map((report) => (
+                <article className="community-observation-card" key={report.id}>
+                  {report.imageUrl && (
+                    <img
+                      className="community-observation-image"
+                      src={getPublicClimateReportImageUrl(report.imageUrl)}
+                      alt={`Submitted photo for ${displayIssueType(report.issueType)} in ${report.township}`}
+                      loading="lazy"
+                      onError={(event) => { event.currentTarget.hidden = true }}
+                    />
+                  )}
+                  <div className="community-observation-card-top">
+                    <span className={`community-observation-severity community-observation-severity-${report.severity}`}>
                       {report.severity}
                     </span>
                     {report.verified && <span className="verified-label">Verified</span>}
                   </div>
-                  <h3>{report.issueType}</h3>
-                  <p className="stories-report-location">
-                    {report.township} · {new Date(report.observationDate).toLocaleDateString()}
-                  </p>
-                  <FormattedText
-                    as="p"
-                    className={`stories-report-description${report.description ? '' : ' is-empty'}`}
-                    text={report.description || 'No public description was provided.'}
-                  />
-                  <span className="stories-report-read-more">View report details →</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+                  <h3 className="community-observation-issues-label">Issue type</h3>
+                  <ul className="community-observation-issues" aria-label={`Issue type: ${displayIssueType(report.issueType)}`}>
+                    {reportIssueTypes(report).slice(0, 1).map((choice) => (
+                      <li key={`${report.id}-${choice}`}>{issueTypeLabel(choice)}</li>
+                    ))}
+                  </ul>
+                  <p className="community-observation-location">{report.township} · {readableDate(report.observationDate)}</p>
+                  {report.description ? (
+                    <FormattedText as="p" className="community-observation-description" text={report.description} />
+                  ) : (
+                    <p className="community-observation-description is-empty">No public description was added.</p>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+          {filteredReports.length > 30 && (
+            // 30 ခုထက်ပိုရှိလျှင် အောက်ပါစာသားဖြင့် ပြသထားသည့်အရေအတွက်ကို အသုံးပြုသူအား အသိပေးသည်။
+            <p className="community-observations-footnote">
+              Showing the latest 30 of {filteredReports.length} approved observations.
+            </p>
+          )}
+        </section>
 
       <div className="admin-dashboard-note">
         <ShieldCheck size={17} />

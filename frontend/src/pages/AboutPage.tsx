@@ -32,6 +32,7 @@ export default function AboutPage() {
   const [programs, setPrograms] = useState<CardModel[]>([])
   const [isLoadingCards, setIsLoadingCards] = useState(true)
 
+  // ဒီ effect က ပရိုဂရမ်ကတ်များကို API မှယူပြီး loading အခြေအနေကို ထိန်းပေးသည်။
   useEffect(() => {
     const loadPrograms = () => {
       setIsLoadingCards(true)
@@ -133,6 +134,7 @@ export default function AboutPage() {
           <div className="flex items-center justify-between gap-4">
             <Carousel opts={{ align: 'start' }} className="w-full">
               <CarouselContent>
+                {/* ဒေတာမရသေးချိန်တွင် skeleton ပြပြီး၊ ရလာလျှင် ပရိုဂရမ်ကတ်များကို ပြသည်။ */}
                 {isLoadingCards
                   ? Array.from({ length: 3 }).map((_, index) => (
                       <CarouselItem key={`skeleton-${index}`} className="basis-full md:basis-1/2 lg:basis-1/3">

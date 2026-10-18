@@ -13,6 +13,7 @@ const LATEST_PROGRAMS_LIMIT = 3
 export default function ProgramsPage() {
   const [programs, setPrograms] = useState<CardModel[]>(fallbackPrograms)
 
+  // နောက်ဆုံးပရိုဂရမ်အနည်းငယ်ကိုသာယူပြီး ကတ်စာရင်းအဖြစ် ပြသရန် state ထဲသိမ်းသည်။
   useEffect(() => {
     fetchCards().then((cards) => setPrograms(cards.slice(0, LATEST_PROGRAMS_LIMIT))).catch(() => undefined)
   }, [])

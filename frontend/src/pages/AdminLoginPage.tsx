@@ -8,11 +8,13 @@ type AdminLoginPageProps = {
 }
 
 export default function AdminLoginPage({ onSuccess, onBack }: AdminLoginPageProps) {
+  // Form state ကို input, loading ခလုတ်နဲ့ error စာသားများသို့ ချိတ်ဆက်ထားသည်။
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
 
+  // Login service အောင်မြင်လျှင် parent callback ဖြင့် dashboard သို့ဝင်ပြီး၊ မအောင်မြင်လျှင် form တွင် error ပြသည်။
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 

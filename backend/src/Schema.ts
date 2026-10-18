@@ -1,6 +1,8 @@
 import mongoose from 'mongoose'
 const Schema = mongoose.Schema
 
+// Mongoose schema များသည် API payload ကို MongoDB document အဖြစ် သတ်မှတ်ပြီး model များမှ CRUD လုပ်ရန် အသုံးပြုသည်။
+// Card မော်ဒယ်သည် frontend ၏ card/project service များဖတ်/ရေးသည့် အကြောင်းအရာကို သတ်မှတ်သည်။
 const cardSchema = new Schema(
   {
     title: {
@@ -45,6 +47,7 @@ const cardSchema = new Schema(
   },
 )
 
+// Story မော်ဒယ်တွင် public story list ပြရန်လိုသည့် status နှင့် content ကို သိမ်းသည်။
 const storySchema = new Schema(
   {
     title: {
@@ -83,6 +86,7 @@ const storySchema = new Schema(
   },
 )
 
+// User မော်ဒယ်က admin login အတွက် username/password hash နှင့် role ကို သိမ်းသည်။
 const userSchema = new Schema(
   {
     username: {
@@ -107,6 +111,7 @@ const userSchema = new Schema(
   },
 )
 
+// Import မှတ်တမ်းဖြင့် Google Sheet မှ အောင်မြင်/မအောင်မြင် ရလဒ်ကို ခြေရာခံသည်။
 const googleSheetImportSchema = new Schema(
   {
     sourceUrl: {
@@ -135,6 +140,7 @@ const googleSheetImportSchema = new Schema(
   },
 )
 
+// Town collection သည် frontend town picker နှင့် map အတွက် အမည်များပေးသည်။
 const townSchema = new Schema(
   {
     town: {
@@ -150,6 +156,7 @@ const townSchema = new Schema(
   },
 )
 
+// Kobo မှ normalize လုပ်ထားသော report နှင့် admin moderation/publication အခြေအနေများကို သိမ်းသည်။
 const climateReportSchema = new Schema(
   {
     externalId: { type: String, unique: true, sparse: true, trim: true },
@@ -180,11 +187,21 @@ const climateReportSchema = new Schema(
   { collection: 'climateReports', timestamps: true }
 )
 
+// ဖျက်ပြီးသား Kobo ID များကို မှတ်ထား၍ နောက်ထပ် sync တွင် ပြန်မထည့်စေရန် အသုံးပြုသည်။
+const deletedClimateReportSchema = new Schema(
+  {
+    externalId: { type: String, required: true, unique: true, trim: true },
+  },
+  { collection: 'deletedClimateReports', timestamps: false }
+)
+
+// ဒီ model များကို server route များက request ကို validate လုပ်ပြီးနောက် DB ဖတ်/ရေးရာတွင် သုံးကာ JSON serializer သို့ ပို့သည်။
 const Card = mongoose.model('Card', cardSchema)
 const Story = mongoose.model('Story', storySchema)
 const User = mongoose.model('User', userSchema)
 const GoogleSheetImport = mongoose.model('GoogleSheetImport', googleSheetImportSchema)
 const Town = mongoose.model('Town', townSchema)
 const ClimateReport = mongoose.model('ClimateReport', climateReportSchema)
+const DeletedClimateReport = mongoose.model('DeletedClimateReport', deletedClimateReportSchema)
 
-export { Card, Story, User, GoogleSheetImport, Town, ClimateReport }
+export { Card, Story, User, GoogleSheetImport, Town, ClimateReport, DeletedClimateReport }

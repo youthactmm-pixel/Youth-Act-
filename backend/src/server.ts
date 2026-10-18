@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Card, Story, User, GoogleSheetImport, Town, ClimateReport } from './Schema'
+import { Card, Story, User, GoogleSheetImport, Town, ClimateReport, DeletedClimateReport } from './Schema'
 import { connectDB } from './connectDB'
 import mongoose from 'mongoose'
 import axios from 'axios'
@@ -19,6 +19,7 @@ const app = express()
 const port = process.env.PORT || 4000
 const DEFAULT_ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin'
 const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin123'
+const ADMIN_SESSION_TTL_MS = 24 * 60 * 60 * 1000
 const adminSessions = new Map<string, { username: string; createdAt: number }>()
 const KOBO_API_URL = (
   process.env.KOBO_BASE_URL ??
@@ -33,6 +34,7 @@ let cachedKoboIssueChoiceLabels: { assetUid: string; labels: Map<string, string>
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '10mb' }))
 
+// Mongoose document များကို frontend service များမျှော်လင့်သည့် JSON ID/field ပုံစံသို့ ပြောင်းပေးသည်။
 function serializeCard(card: any) {
   const plainCard = typeof card?.toObject === 'function' ? card.toObject() : card
   return {
@@ -62,6 +64,7 @@ function serializeStory(story: any) {
 }
 
 function getCardImages(body: Record<string, unknown>): string[] | null {
+  // API ထဲမဝင်ခင် card အတွက် လက်ခံနိုင်သော image အရေအတွက်နှင့် ပုံစံကို စစ်သည်။
   const submittedImages = body.images
   const images: unknown[] = Array.isArray(submittedImages)
     ? submittedImages
@@ -187,10 +190,12 @@ function getGoogleSheetCsvUrl(sourceUrl: string) {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv${gid}`
 }
 
+// Frontend auth service ၏ Bearer token ကို စစ်ပြီး admin route များသို့သာ ဆက်ဝင်ခွင့်ပေးသည်။
 function requireAdmin(request: express.Request, response: express.Response, next: express.NextFunction) {
   const token = getBearerToken(request)
-
-  if (!token || !adminSessions.has(token)) {
+  const session = token ? adminSessions.get(token) : undefined
+  if (!token || !session || Date.now() - session.createdAt >= ADMIN_SESSION_TTL_MS) {
+    if (token && session) adminSessions.delete(token)
     response.status(401).json({ message: 'Unauthorized. Admin access required.' })
     return
   }
@@ -258,13 +263,6 @@ function normalizeKoboSeverity(value: unknown): 'low' | 'moderate' | 'high' | 'c
   return 'low'
 }
 
-function isKoboValidationApproved(value: unknown): boolean {
-  const status = value && typeof value === 'object' && !Array.isArray(value)
-    ? Object.values(value).filter((part): part is string => typeof part === 'string').join(' ')
-    : String(value ?? '')
-  return /\bapproved\b/i.test(status)
-}
-
 function getKoboImageUrl(record: Record<string, unknown>): string {
   if (!Array.isArray(record._attachments)) return ''
   const assetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
@@ -301,6 +299,7 @@ function getKoboImageConsent(record: Record<string, unknown>): boolean {
   return consent.startsWith('yes') && consent.includes('subjecttoreview')
 }
 
+// Kobo raw submission ကို ClimateReport schema နှင့်ကိုက်ညီသည့် validated field များအဖြစ် ပြောင်းသည်။
 function normalizeKoboReport(record: Record<string, unknown>, issueChoiceLabels: Map<string, string>) {
   const values = flattenKoboRecord(record)
   const coordinate =
@@ -354,7 +353,6 @@ function normalizeKoboReport(record: Record<string, unknown>, issueChoiceLabels:
 
   return {
     externalId: id,
-    koboApproved: isKoboValidationApproved(record._validation_status),
     sourceImageUrl: getKoboImageUrl(record),
     sourceImageConsent: getKoboImageConsent(record),
     township: String(pickKoboValue(values, ['township', 'town', 'district', 'area', 'Township_']) ?? 'Unspecified').trim().slice(0, 120) || 'Unspecified',
@@ -482,100 +480,11 @@ function getKoboIssueChoices(content: unknown): Array<{ value: string; label: st
   return [...issueChoices.entries()].map(([value, label]) => ({ value, label }))
 }
 
-function getKoboSection3Options(content: unknown): Array<{
-  questionName: string
-  questionLabel: string
-  choices: Array<{ value: string; label: string }>
-}> {
-  if (!content || typeof content !== 'object' || Array.isArray(content)) return []
-  const formContent = content as Record<string, unknown>
-  const survey = Array.isArray(formContent.survey) ? formContent.survey : []
-  const choices = Array.isArray(formContent.choices) ? formContent.choices : []
-  const sectionOptions: Array<{
-    questionName: string
-    questionLabel: string
-    choices: Array<{ value: string; label: string }>
-  }> = []
-
-  const collectChoices = (question: Record<string, unknown>, type: string) => {
-    const listName = type.split(/\s+/).slice(1).join(' ')
-    const questionChoices = new Map<string, { value: string; label: string }>()
-    const addChoice = (choice: Record<string, unknown>) => {
-      const value = typeof choice.name === 'string' ? choice.name.trim() : ''
-      const label = getKoboLabel(choice.label)
-      if (value && label) questionChoices.set(normalizeKoboKey(value), { value, label })
-    }
-
-    if (Array.isArray(question.children)) {
-      for (const child of question.children) {
-        if (child && typeof child === 'object' && !Array.isArray(child)) {
-          addChoice(child as Record<string, unknown>)
-        }
-      }
-    }
-    for (const choice of choices) {
-      if (!choice || typeof choice !== 'object' || Array.isArray(choice)) continue
-      const item = choice as Record<string, unknown>
-      if (listName && item.list_name === listName) addChoice(item)
-    }
-
-    return [...questionChoices.values()]
-  }
-
-  const visit = (nodes: unknown[], inheritedSection3: boolean) => {
-    const section3Stack = [inheritedSection3]
-    for (const node of nodes) {
-      if (!node || typeof node !== 'object' || Array.isArray(node)) continue
-      const item = node as Record<string, unknown>
-      const name = typeof item.name === 'string' ? item.name : ''
-      const label = getKoboLabel(item.label)
-      const normalizedContext = normalizeKoboKey(`${name} ${label}`)
-      const isSection3Group = normalizedContext.includes('section3') ||
-        normalizedContext.includes('sectionthree') ||
-        normalizedContext.includes('identifytheproblem')
-      const type = typeof item.type === 'string' ? item.type.trim() : ''
-      if (type.toLowerCase() === 'end_group') {
-        if (section3Stack.length > 1) section3Stack.pop()
-        continue
-      }
-      const isSection3 = section3Stack[section3Stack.length - 1] || isSection3Group
-      if (type.toLowerCase() === 'begin_group') {
-        const nestedNodes = Array.isArray(item.children)
-          ? item.children
-          : Array.isArray(item.survey)
-            ? item.survey
-            : null
-        if (nestedNodes) visit(nestedNodes, isSection3)
-        else section3Stack.push(isSection3)
-        continue
-      }
-      const isProblemQuestion = normalizedContext.includes('identifytheproblem') ||
-        normalizedContext.includes('whatenvironmentalproblemdidyounotice') ||
-        normalizedContext.includes('whatenvironmentdoyounotice')
-      if (
-        (isSection3 || isProblemQuestion) &&
-        /^select_(one|multiple)\s+/i.test(type) &&
-        name &&
-        label
-      ) {
-        const questionChoices = collectChoices(item, type)
-        if (questionChoices.length) {
-          sectionOptions.push({ questionName: name, questionLabel: label, choices: questionChoices })
-        }
-      }
-      if (Array.isArray(item.children)) visit(item.children, isSection3)
-      if (Array.isArray(item.survey)) visit(item.survey, isSection3)
-    }
-  }
-
-  visit(survey, false)
-  return sectionOptions
-}
-
 function getKoboIssueChoiceLabels(content: unknown): Map<string, string> {
   return new Map(getKoboIssueChoices(content).map(({ value, label }) => [value, label]))
 }
 
+// Kobo API asset ကို frontend form-details service သုံးသည့် ရိုးရှင်းသော JSON response အဖြစ် ထုတ်ပေးသည်။
 function serializeKoboForm(asset: Record<string, unknown>) {
   const settings = asset.settings && typeof asset.settings === 'object'
     ? asset.settings as Record<string, unknown>
@@ -606,7 +515,6 @@ function serializeKoboForm(asset: Record<string, unknown>) {
     description: typeof settings.description === 'string' ? settings.description.trim() : '',
     questions: getKoboFormQuestions(asset.content),
     issueTypeChoices: getKoboIssueChoices(asset.content),
-    section3Options: getKoboSection3Options(asset.content),
     participationUrl,
     active,
   }
@@ -618,11 +526,12 @@ function resolveKoboAssetUid(requestedUid: string) {
     : requestedUid
 }
 
+// Kobo submission များကို normalize လုပ်ပြီး ClimateReport model ထဲ upsert လုပ်ကာ ထပ်တူ import မဖြစ်စေသည်။
 async function syncKoboReports() {
   const assetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
   const apiToken = process.env.KOBO_API_TOKEN?.trim()
-  if (!assetUid || !apiToken) return { imported: 0, published: 0, configured: false }
-  if (isKoboSyncRunning) return { imported: 0, published: 0, configured: true }
+  if (!assetUid || !apiToken) return { imported: 0, photosFound: 0, photosSaved: 0, configured: false }
+  if (isKoboSyncRunning) return { imported: 0, photosFound: 0, photosSaved: 0, configured: true }
 
   isKoboSyncRunning = true
   try {
@@ -654,7 +563,6 @@ async function syncKoboReports() {
       : new Map<string, string>()
     let nextUrl: string | null = `${KOBO_API_URL}/api/v2/assets/${encodeURIComponent(assetUid)}/data/?format=json`
     let imported = 0
-    let published = 0
     let photosFound = 0
     let photosSaved = 0
     let pageCount = 0
@@ -673,43 +581,49 @@ async function syncKoboReports() {
       for (const record of records) {
         const normalized = normalizeKoboReport(record as Record<string, unknown>, issueChoiceLabels)
         if (!normalized) continue
-        const { koboApproved, ...report } = normalized
-        if (report.sourceImageUrl) photosFound += 1
-        const { issueType, issueTypes, ...reportOnInsert } = report
+        if (await DeletedClimateReport.exists({ externalId: normalized.externalId })) continue
+        if (normalized.sourceImageUrl) photosFound += 1
+        const { issueType, issueTypes, ...reportOnInsert } = normalized
         const upsertResult = await ClimateReport.updateOne(
-          { externalId: report.externalId },
+          { externalId: normalized.externalId },
           {
             $set: { issueType, issueTypes },
-            $setOnInsert: { ...reportOnInsert, status: koboApproved ? 'approved' : 'pending', verified: false },
+            $setOnInsert: { ...reportOnInsert, status: 'pending', verified: false },
           },
           { upsert: true }
         )
         imported += upsertResult.upsertedCount
-        if (report.sourceImageUrl || report.sourceImageConsent) {
+        if (normalized.sourceImageUrl || normalized.sourceImageConsent) {
           const photoUpdate = await ClimateReport.updateOne(
-            { externalId: report.externalId, status: { $ne: 'rejected' } },
-            { $set: { sourceImageUrl: report.sourceImageUrl, sourceImageConsent: report.sourceImageConsent } }
+            { externalId: normalized.externalId, status: { $ne: 'rejected' } },
+            { $set: { sourceImageUrl: normalized.sourceImageUrl, sourceImageConsent: normalized.sourceImageConsent } }
           )
-          if (report.sourceImageUrl && (photoUpdate.modifiedCount || photoUpdate.matchedCount)) photosSaved += 1
+          if (normalized.sourceImageUrl && (photoUpdate.modifiedCount || photoUpdate.matchedCount)) photosSaved += 1
         }
-        if (koboApproved) {
-          const promotionResult = await ClimateReport.updateOne(
-            { externalId: report.externalId, status: 'pending' },
-            { $set: { status: 'approved' } }
-          )
-          published += upsertResult.upsertedCount + promotionResult.modifiedCount
-        }
+        await ClimateReport.updateOne(
+          {
+            externalId: normalized.externalId,
+            status: 'approved',
+            $or: [
+              { approvedDescription: { $exists: false } },
+              { approvedDescription: { $in: ['', null] } },
+              { approvedDescription: { $regex: /^\s*$/ } },
+            ],
+          },
+          { $set: { status: 'pending', verified: false, publicImageApproved: false } }
+        )
       }
       nextUrl = typeof pageData.next === 'string' ? pageData.next : null
       pageCount += 1
     }
     if (nextUrl) throw new Error('Kobo submissions exceeded the 50-page synchronization limit')
-    return { imported, published, photosFound, photosSaved, configured: true }
+    return { imported, photosFound, photosSaved, configured: true }
   } finally {
     isKoboSyncRunning = false
   }
 }
 
+// Admin/public response ကို သီးခြားစီ serialize လုပ်၍ public တွင် privacy-sensitive field များ မထွက်စေသည်။
 function serializeClimateReport(report: any, publicView = false) {
   const latitude = Number(report.latitude)
   const longitude = Number(report.longitude)
@@ -745,6 +659,7 @@ function serializeClimateReport(report: any, publicView = false) {
       }
 }
 
+// Kobo ရှိပုံကို URL/host/type စစ်ပြီး API မှတစ်ဆင့် လုံခြုံစွာ ပြန်ပို့သည်။
 async function sendClimateReportImage(report: any, response: express.Response) {
   const sourceUrl = typeof report.sourceImageUrl === 'string' ? report.sourceImageUrl : ''
   if (!sourceUrl) {
@@ -840,6 +755,7 @@ function createRiskZones(reports: Array<{ latitude: number; longitude: number; s
   }
 }
 
+// ပထမဆုံး admin user မရှိသေးမှသာ hashed password ဖြင့် seed လုပ်၍ login route အသုံးပြုနိုင်စေသည်။
 async function ensureDefaultAdminUser() {
   const normalizedUsername = DEFAULT_ADMIN_USERNAME.trim().toLowerCase()
   const existingUser = await User.findOne({ username: normalizedUsername }).lean()
@@ -856,6 +772,7 @@ async function ensureDefaultAdminUser() {
   })
 }
 
+// auth.ts မှခေါ်သော login route သည် credential ကို DB နှင့်စစ်ပြီး frontend သိမ်းမည့် session token ပြန်ပေးသည်။
 app.post('/api/admin/login', async (request, response) => {
   const username = typeof request.body?.username === 'string' ? request.body.username.trim() : ''
   const password = typeof request.body?.password === 'string' ? request.body.password : ''
@@ -876,9 +793,13 @@ app.post('/api/admin/login', async (request, response) => {
   }
 
   const token = randomUUID()
+  const now = Date.now()
+  for (const [sessionToken, session] of adminSessions) {
+    if (now - session.createdAt >= ADMIN_SESSION_TTL_MS) adminSessions.delete(sessionToken)
+  }
   adminSessions.set(token, {
     username: normalizedUsername,
-    createdAt: Date.now(),
+    createdAt: now,
   })
 
   response.json({
@@ -913,6 +834,7 @@ app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: 'youthact-api' })
 })
 
+// Public form-detail endpoint; Kobo မှရယူထားသည့် asset ကို serializeKoboForm ဖြင့် frontend ပုံစံသို့ ပြောင်းသည်။
 app.get('/api/kobo/forms/:assetUid', async (request, response) => {
   const assetUid = resolveKoboAssetUid(request.params.assetUid)
   if (assetUid !== KOBO_DETAIL_ASSET_UID) {
@@ -944,6 +866,7 @@ app.get('/api/kobo/forms/:assetUid', async (request, response) => {
   }
 })
 
+// Public frontend submission feed တွင် အတည်ပြုပြီး description ပါသည့် report များသာ ထုတ်ပေးသည်။
 app.get('/api/kobo/forms/:assetUid/submissions', async (request, response) => {
   const submissionsAssetUid = process.env.KOBO_ASSET_UID?.trim() || KOBO_DETAIL_ASSET_UID
   const assetUid = resolveKoboAssetUid(request.params.assetUid)
@@ -953,7 +876,10 @@ app.get('/api/kobo/forms/:assetUid/submissions', async (request, response) => {
   }
 
   try {
-    const reports = await ClimateReport.find({ status: 'approved' })
+    const reports = await ClimateReport.find({
+      status: 'approved',
+      approvedDescription: { $regex: /\S/ },
+    })
       .sort({ observationDate: -1 })
       .limit(500)
       .lean()
@@ -964,6 +890,7 @@ app.get('/api/kobo/forms/:assetUid/submissions', async (request, response) => {
   }
 })
 
+// Public map report ပုံကို consent နှင့် admin approval နှစ်ခုလုံးရှိမှ ပြန်ပေးသည်။
 app.get('/api/climate/reports/:id/image', async (request, response) => {
   if (!mongoose.isValidObjectId(request.params.id)) {
     response.status(404).json({ message: 'Climate report image not found.' })
@@ -973,6 +900,7 @@ app.get('/api/climate/reports/:id/image', async (request, response) => {
     const report = await ClimateReport.findOne({
       _id: request.params.id,
       status: 'approved',
+      approvedDescription: { $regex: /\S/ },
       publicImageApproved: true,
       sourceImageConsent: true,
     }).lean()
@@ -988,9 +916,13 @@ app.get('/api/climate/reports/:id/image', async (request, response) => {
   }
 })
 
+// Public climate service အတွက် approved reports, risk zones နှင့် refresh metadata ကို ထုတ်ပေးသည်။
 app.get('/api/climate/reports', async (_request, response) => {
   try {
-    const reports = await ClimateReport.find({ status: 'approved' }).sort({ observationDate: -1 }).limit(500).lean()
+    const reports = await ClimateReport.find({
+      status: 'approved',
+      approvedDescription: { $regex: /\S/ },
+    }).sort({ observationDate: -1 }).limit(500).lean()
     response.json({
       reports: reports.map((report) => serializeClimateReport(report, true)),
       riskZones: createRiskZones(reports),
@@ -1003,6 +935,7 @@ app.get('/api/climate/reports', async (_request, response) => {
   }
 })
 
+// Admin climate route များတွင် requireAdmin → query/status validation → Mongoose → serializer အစဉ်လိုက်ဖြစ်သည်။
 app.get('/api/admin/climate/reports', requireAdmin, async (request, response) => {
   try {
     const status = typeof request.query.status === 'string' ? request.query.status : 'pending'
@@ -1010,7 +943,25 @@ app.get('/api/admin/climate/reports', requireAdmin, async (request, response) =>
       response.status(400).json({ message: 'Invalid report status' })
       return
     }
-    const reports = await ClimateReport.find({ status }).sort({ createdAt: -1 }).limit(500).lean()
+    const reports = await ClimateReport.find(
+      status === 'pending'
+        ? {
+            $or: [
+              { status: 'pending' },
+              {
+                status: 'approved',
+                $or: [
+                  { approvedDescription: { $exists: false } },
+                  { approvedDescription: { $in: ['', null] } },
+                  { approvedDescription: { $regex: /^\s*$/ } },
+                ],
+              },
+            ],
+          }
+        : status === 'approved'
+          ? { status: 'approved', approvedDescription: { $regex: /\S/ } }
+          : { status }
+    ).sort({ createdAt: -1 }).limit(500).lean()
     response.json(reports.map((report) => serializeClimateReport(report)))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unable to load report review queue'
@@ -1071,7 +1022,7 @@ app.put('/api/admin/climate/reports/:id', requireAdmin, async (request, response
       response.status(404).json({ message: 'Climate report not found' })
       return
     }
-    if (status === 'approved' && !approvedDescription && existingReport.status !== 'approved') {
+    if (status === 'approved' && !approvedDescription) {
       response.status(400).json({ message: 'Add an approved, privacy-reviewed description before publishing.' })
       return
     }
@@ -1105,6 +1056,38 @@ app.put('/api/admin/climate/reports/:id', requireAdmin, async (request, response
   }
 })
 
+app.delete('/api/admin/climate/reports/:id', requireAdmin, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(404).json({ message: 'Climate report not found.' })
+    return
+  }
+  try {
+    const report = await ClimateReport.findById(request.params.id).lean()
+    if (!report) {
+      response.status(404).json({ message: 'Climate report not found.' })
+      return
+    }
+    if (report.externalId) {
+      await DeletedClimateReport.updateOne(
+        { externalId: report.externalId },
+        { $setOnInsert: { externalId: report.externalId } },
+        { upsert: true }
+      )
+    }
+    const result = await ClimateReport.deleteOne({ _id: report._id })
+    if (result.deletedCount !== 1) {
+      response.status(409).json({ message: 'Climate report changed before it could be deleted. Refresh the review queue and try again.' })
+      return
+    }
+    response.status(204).end()
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to delete climate report'
+    console.error('Climate report deletion failed:', errorMessage)
+    response.status(500).json({ message: 'Unable to delete climate report.' })
+  }
+})
+
+// Frontend fetchWeatherStatus ၏ /api/weather ခေါ်ဆိုမှုကို coordinate စစ်ပြီး provider response ပုံစံညှိပေးသည်။
 app.get('/api/weather', async (request, response) => {
   const latitudeValue = typeof request.query.lat === 'string' ? request.query.lat.trim() : ''
   const longitudeValue = typeof request.query.lon === 'string' ? request.query.lon.trim() : ''
@@ -1215,6 +1198,7 @@ app.get('/api/weather', async (request, response) => {
   }
 })
 
+// Frontend town/card/story service များအတွက် public list route များ; DB record များကို API JSON အဖြစ် serialize လုပ်သည်။
 app.get('/api/towns', async (_request, response) => {
   try {
     const towns = await Town.find({}).sort({ town: 1 }).lean()
@@ -1250,6 +1234,7 @@ app.get('/api/cards', async (_request, response) => {
   }
 })
 
+// Admin import service နှင့် ချိတ်ဆက်သည်: auth စစ် → CSV/row များ validate/convert → Card နှင့် import log သိမ်း → serialize လုပ်ပြန်ပေးသည်။
 app.post('/api/google-sheet/import', requireAdmin, async (request, response) => {
   try {
     const sourceUrl = typeof request.body?.sourceUrl === 'string' ? request.body.sourceUrl.trim() : ''
@@ -1314,6 +1299,7 @@ app.post('/api/google-sheet/import', requireAdmin, async (request, response) => 
   }
 })
 
+// Card collection ကို admin token ဖြင့်ကာကွယ်ပြီး Mongoose model မှ ဖျက်ပေးသည်။
 app.delete('/api/cards', requireAdmin, async (_request, response) => {
   try {
     const result = await Card.deleteMany({})
@@ -1324,6 +1310,7 @@ app.delete('/api/cards', requireAdmin, async (_request, response) => {
   }
 })
 
+// Public detail endpoint များက ObjectId စစ်ပြီး model မှဖတ်ကာ frontend တူညီသည့် card JSON ပြန်ပေးသည်။
 app.get('/api/cards/:id', async (request, response) => {
   if (!mongoose.isValidObjectId(request.params.id)) {
     response.status(404).json({ message: 'Card not found' })
@@ -1356,6 +1343,7 @@ app.get('/api/projects/:id', async (request, response) => {
   response.json(serializeCard(project))
 })
 
+// Admin create/update သည် image input စစ်ပြီး schema validation ဖြင့်သိမ်းကာ frontend ပုံစံ JSON ပြန်ပေးသည်။
 app.post('/api/cards', requireAdmin, async (request, response) => {
   try {
     const images = getCardImages(request.body ?? {})
@@ -1415,6 +1403,7 @@ app.put('/api/cards/:id', requireAdmin, async (request, response) => {
 })
 
 if (existsSync(frontendDistPath)) {
+  // Frontend API route များကို မဖမ်းဘဲ ကျန် path များအတွက် SPA index ကို fallback ပေးသည်။
   app.use(express.static(frontendDistPath, { index: false }))
 
   app.use((request, response, next) => {
@@ -1434,6 +1423,7 @@ if (existsSync(frontendDistPath)) {
 }
 
 async function startServer() {
+  // DB ချိတ်ပြီး schema-backed admin/sync အလုပ်များ ပြင်ဆင်ကာမှ HTTP API ကို နားထောင်စေသည်။
   await connectDB()
   await ensureDefaultAdminUser()
   syncKoboReports().catch((error) => {

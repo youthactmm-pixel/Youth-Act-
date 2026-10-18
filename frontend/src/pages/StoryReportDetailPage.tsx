@@ -13,6 +13,7 @@ import {
 function ReportPhoto({ report }: { report: ClimateReport }) {
   const [loadFailed, setLoadFailed] = useState(false)
 
+  // အများပြည်သူခွင့်ပြုထားသောပုံကိုသာပြပြီး ပုံမရှိ/မတင်နိုင်လျှင် အခြေအနေစာပြသည်။
   if (!report.imageUrl || loadFailed) {
     return (
       <p className="story-report-photo-unavailable" role="status">
@@ -35,31 +36,41 @@ function ReportPhoto({ report }: { report: ClimateReport }) {
 
 export default function StoryReportDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const [report, setReport] = useState<ClimateReport | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [loadState, setLoadState] = useState<{
+    id: string | undefined | null
+    report: ClimateReport | null
+    error: string
+  }>({ id: null, report: null, error: '' })
+  const currentLoad = loadState.id === id
+  const loading = !currentLoad
+  const report = currentLoad ? loadState.report : null
+  const error = currentLoad ? loadState.error : ''
 
+  // အများပြည်သူဖတ်ရှုနိုင်သော report များထဲမှ URL ID နှင့်ကိုက်ညီသည်ကိုရှာသည်။
   useEffect(() => {
     const controller = new AbortController()
-    setLoading(true)
-    setError('')
 
     fetchClimateReports(controller.signal)
       .then(({ reports }) => {
         const matchingReport = reports.find((item) => item.id === id)
         if (!matchingReport) {
-          setError('This report is unavailable or is no longer public.')
+          setLoadState({
+            id,
+            report: null,
+            error: 'This report is unavailable or is no longer public.',
+          })
           return
         }
-        setReport(matchingReport)
+        setLoadState({ id, report: matchingReport, error: '' })
       })
       .catch((loadError: unknown) => {
         if (!controller.signal.aborted) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to load this report.')
+          setLoadState({
+            id,
+            report: null,
+            error: loadError instanceof Error ? loadError.message : 'Unable to load this report.',
+          })
         }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
       })
 
     return () => controller.abort()
@@ -72,9 +83,34 @@ export default function StoryReportDetailPage() {
         <section className="story-report-detail shell">
           <Link className="story-report-back" to="/stories"><ArrowLeft size={16} /> All stories</Link>
           {loading ? (
-            <div className="story-report-state" role="status">
-              <span className="eyebrow">Community report</span>
-              <p>Loading observation details…</p>
+            <div className="story-report-loading-card" role="status" aria-label="Loading community report">
+              <span className="detail-loading-announcement">Loading observation details…</span>
+              <div className="detail-skeleton story-report-loading-cover" aria-hidden="true" />
+              <div className="story-report-loading-body" aria-hidden="true">
+                <div className="story-report-loading-heading">
+                  <div className="story-report-loading-title">
+                    <span className="detail-skeleton story-report-skeleton-kicker" />
+                    <span className="detail-skeleton story-report-skeleton-title" />
+                    <span className="detail-skeleton story-report-skeleton-location" />
+                  </div>
+                  <span className="detail-skeleton story-report-skeleton-badge" />
+                </div>
+                <div className="story-report-loading-columns">
+                  <div className="story-report-loading-copy">
+                    <span className="detail-skeleton story-report-skeleton-section-label" />
+                    <span className="detail-skeleton" />
+                    <span className="detail-skeleton" />
+                    <span className="detail-skeleton" />
+                    <span className="detail-skeleton story-report-skeleton-line-short" />
+                  </div>
+                  <div className="story-report-loading-copy">
+                    <span className="detail-skeleton story-report-skeleton-section-label" />
+                    <span className="detail-skeleton" />
+                    <span className="detail-skeleton" />
+                    <span className="detail-skeleton" />
+                  </div>
+                </div>
+              </div>
             </div>
           ) : error ? (
             <div className="story-report-state story-report-unavailable" role="alert">

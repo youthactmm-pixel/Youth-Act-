@@ -9,6 +9,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { Component } from 'react';
+import { useEffect } from 'react';
 
 import { HomePage } from './pages/mainpage';
 import YangonWeatherPage from './pages/YangonWeatherPage';
@@ -26,7 +27,7 @@ import KoboFormDetailPage from './pages/KoboFormDetailPage';
 import ClimateReportReviewPage from './pages/ClimateReportReviewPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminHomePage from './pages/AdminHomePage';
-import { isAdminAuthenticated, clearAdminToken } from './services/auth';
+import { isAdminAuthenticated, getAdminSessionExpiresAt, clearAdminToken } from './services/auth';
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -122,8 +123,36 @@ class ErrorBoundary extends Component<
 
 function AdminRoute() {
   const navigate = useNavigate();
+  const authenticated = isAdminAuthenticated();
 
-  if (!isAdminAuthenticated()) {
+  useEffect(() => {
+    if (!authenticated) return
+
+    const expiresAt = getAdminSessionExpiresAt()
+    if (!expiresAt) {
+      clearAdminToken()
+      navigate('/admin/login', { replace: true })
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      clearAdminToken()
+      navigate('/admin/login', { replace: true })
+    }, Math.max(0, expiresAt - Date.now()))
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'youthact_admin_token' && !event.newValue) {
+        navigate('/admin/login', { replace: true })
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [authenticated, navigate])
+
+  if (!authenticated) {
     return <Navigate to="/admin/login" replace />;
   }
 

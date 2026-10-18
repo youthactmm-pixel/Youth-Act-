@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react'
 import { RichTextArea } from '@/components/RichText'
+import SavedChangeDialog from '@/components/SavedChangeDialog'
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  deleteClimateReport,
   fetchClimateReportsForReview,
   fetchClimateReportImage,
   moderateClimateReport,
@@ -14,6 +25,7 @@ function ClimateReportImagePreview({ reportId }: { reportId: string }) {
   const [imageUrl, setImageUrl] = useState('')
   const [error, setError] = useState('')
 
+  // Report ပြောင်းသည့်အခါ image ကိုပြန်ယူပြီး component ထွက်လျှင် object URL ကိုဖျက်သိမ်းသည်။
   useEffect(() => {
     let objectUrl = ''
     let cancelled = false
@@ -46,15 +58,20 @@ type ClimateReportReviewPageProps = {
 }
 
 export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateReportReviewPageProps) {
+  // Queue ထဲက report များနှင့် per-report ပြင်ဆင်ချက်များကို key ဖြင့်ထိန်းကာ card controls သို့ပြန်ချိတ်သည်။
   const [reports, setReports] = useState<ClimateReport[]>([])
   const [descriptions, setDescriptions] = useState<Record<string, string>>({})
   const [verification, setVerification] = useState<Record<string, boolean>>({})
   const [publicImages, setPublicImages] = useState<Record<string, boolean>>({})
   const [queueStatus, setQueueStatus] = useState<'pending' | 'approved'>('pending')
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
+  const [savedDialogOpen, setSavedDialogOpen] = useState(false)
+  const [savedDialogMessage, setSavedDialogMessage] = useState('')
+  const [reportToDelete, setReportToDelete] = useState<ClimateReport | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // ရွေးထားသော queue ကိုရယူပြီး မပြင်ရသေးသော description/verification/photo အခြေအနေများကို report data ဖြင့်ဖြည့်သည်။
   const loadQueue = useCallback(async () => {
     setError('')
     try {
@@ -77,18 +94,20 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
     }
   }, [queueStatus])
 
+  // Pending/Published filter ပြောင်းလျှင် သက်ဆိုင်ရာ queue ကို ပြန်ဖတ်စေသည်။
   useEffect(() => { void loadQueue() }, [loadQueue])
 
+  // Kobo မှ submission/photo metadata ကို sync လုပ်ပြီး လက်ရှိ queue နှင့် အောင်မြင်မှု dialog ကို update လုပ်သည်။
   async function syncSubmissions() {
     setBusy(true)
     setError('')
-    setNotice('')
     try {
       const result = await syncKoboClimateReports()
-      setNotice(
-        `${result.imported} new Kobo submission(s) imported; ${result.published} Kobo-approved report(s) newly published; ${result.photosFound} photo(s) found and ${result.photosSaved} linked to reports.`
+      setSavedDialogMessage(
+        `${result.imported} new Kobo submission(s) imported for admin review; ${result.photosFound} photo(s) found and ${result.photosSaved} linked to reports.`
       )
       await loadQueue()
+      setSavedDialogOpen(true)
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : 'Kobo submissions could not be synced.')
     } finally {
@@ -96,6 +115,7 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
     }
   }
 
+  // Privacy-safe description လိုအပ်ချက်နှင့် consent/photo toggle များကိုစစ်ပြီး report ကို publish သို့မဟုတ် reject လုပ်သည်။
   async function review(report: ClimateReport, status: 'approved' | 'rejected') {
     if (status === 'approved' && queueStatus === 'pending' && !descriptions[report.id]?.trim()) {
       setError('Add a privacy-reviewed public description before approving.')
@@ -103,7 +123,6 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
     }
     setBusy(true)
     setError('')
-    setNotice('')
     try {
       const sharePhoto = status === 'approved' &&
         report.hasImage &&
@@ -115,7 +134,7 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
         verified: status === 'approved' && Boolean(verification[report.id]),
         publicImageApproved: sharePhoto,
       })
-      setNotice(status === 'approved'
+      setSavedDialogMessage(status === 'approved'
         ? sharePhoto
           ? 'Report and consented photo are published. Anyone can view the photo.'
           : report.hasImage
@@ -123,8 +142,27 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
             : 'Report approved and published.'
         : 'Report rejected and kept off the public map.')
       await loadQueue()
+      setSavedDialogOpen(true)
     } catch (reviewError) {
       setError(reviewError instanceof Error ? reviewError.message : 'Report review could not be saved.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // အတည်ပြု dialog မှရွေးထားသော report ကိုဖျက်ပြီး queue ကို ပြန်ဖတ်သည်။
+  async function deleteReport() {
+    if (!reportToDelete) return
+    setBusy(true)
+    setDeleteError('')
+    try {
+      await deleteClimateReport(reportToDelete.id)
+      setSavedDialogMessage(`The report "${reportToDelete.issueType}" was permanently deleted.`)
+      setReportToDelete(null)
+      await loadQueue()
+      setSavedDialogOpen(true)
+    } catch (deleteFailure) {
+      setDeleteError(deleteFailure instanceof Error ? deleteFailure.message : 'Unable to delete climate report.')
     } finally {
       setBusy(false)
     }
@@ -137,7 +175,7 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
           <Link className="climate-review-back" to="/admin" onClick={(event) => { event.preventDefault(); onBack() }}><ArrowLeft size={15} /> Admin dashboard</Link>
           <p className="eyebrow">Moderation queue</p>
           <h1>Community reports</h1>
-          <p>Kobo submissions marked Approved publish their mapped report details. Review each submitted image before explicitly allowing it on public story cards. Never publish photos with identifying or sensitive details.</p>
+          <p>New Kobo submissions stay private until a YouthAct administrator reviews and approves them. Review each submitted image before explicitly allowing it on public story cards. Never publish photos with identifying or sensitive details.</p>
         </div>
         <div className="climate-review-actions">
           <button
@@ -161,8 +199,8 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
         </div>
       </header>
       <section className="shell climate-review-content">
+        {/* Queue state ကိုလိုက်၍ report cards, image consent, ပြင်ဆင်နိုင်သောစာသားနှင့် moderation actions ပြသည်။ */}
         {error && <p className="climate-review-message error" role="alert">{error}</p>}
-        {notice && <p className="climate-review-message" role="status">{notice}</p>}
         {reports.length === 0 ? <p className="climate-review-empty">{queueStatus === 'pending' ? 'No reports are waiting for review.' : 'No reports have been published yet.'}</p> : reports.map((report) => (
           <article className="climate-review-card" key={report.id}>
             <div className="climate-review-card-heading">
@@ -212,6 +250,7 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
                 <div className="climate-review-buttons">
                   <button className="button button-dark" type="button" disabled={busy} onClick={() => void review(report, 'approved')}>Approve and publish</button>
                   <button className="button climate-reject-button" type="button" disabled={busy} onClick={() => void review(report, 'rejected')}>Reject</button>
+                  <button className="button climate-reject-button" type="button" disabled={busy} onClick={() => { setDeleteError(''); setReportToDelete(report) }}><Trash2 size={15} /> Delete</button>
                 </div>
               </>
             )}
@@ -222,11 +261,42 @@ export default function ClimateReportReviewPage({ onBack, onLogout }: ClimateRep
                     ? 'Save settings and publish photo'
                     : 'Save public card settings'}
                 </button>
+                <button className="button climate-reject-button" type="button" disabled={busy} onClick={() => { setDeleteError(''); setReportToDelete(report) }}><Trash2 size={15} /> Delete</button>
               </div>
             )}
           </article>
         ))}
       </section>
+      <SavedChangeDialog
+        open={savedDialogOpen}
+        onOpenChange={setSavedDialogOpen}
+        message={savedDialogMessage}
+      />
+      <AlertDialog
+        open={reportToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !busy) {
+            setReportToDelete(null)
+            setDeleteError('')
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this report permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove “{reportToDelete?.issueType}” from the review records and public pages. This action cannot be undone.
+            </AlertDialogDescription>
+            {deleteError && <p className="climate-review-message error" role="alert">{deleteError}</p>}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <button className="button climate-reject-button" type="button" disabled={busy} onClick={() => void deleteReport()}>
+              {busy ? 'Deleting…' : 'Delete permanently'}
+            </button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }

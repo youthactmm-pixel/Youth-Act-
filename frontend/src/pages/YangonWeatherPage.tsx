@@ -30,6 +30,7 @@ async function findTownCoordinates(townName: string): Promise<[number, number]> 
 function MapCamera({ center }: { center: LatLngExpression }) {
   const map = useMap()
 
+  // ရွေးချယ်ထားသောတည်နေရာပြောင်းလဲလျှင် မြေပုံကို ထိုနေရာသို့ ချောမွေ့စွာရွှေ့သည်။
   useEffect(() => {
     map.flyTo(center, Math.max(map.getZoom(), 12), { duration: 0.7 })
   }, [center, map])
@@ -58,6 +59,7 @@ export default function YangonWeatherPage() {
   const [isLocating, setIsLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
 
+  // Google Sheet မှ မြို့စာရင်းယူပြီး မရပါက API စာရင်းကို အစားထိုးအသုံးပြုသည်။
   useEffect(() => {
     const loadTowns = async () => {
       try {
@@ -82,6 +84,7 @@ export default function YangonWeatherPage() {
     loadTowns()
   }, [])
 
+  // URL မှ တည်နေရာပါလာလျှင် ၎င်းကိုသုံးပြီး၊ မပါလျှင် မြို့စာရင်းအလိုက် map pin ချသည်။
   useEffect(() => {
     if (!towns.length) return
 
@@ -114,6 +117,7 @@ export default function YangonWeatherPage() {
       .slice(0, 6)
   }, [search, towns])
 
+  // ရွေးထားသောမြို့အမည်ကို မြေပုံတည်နေရာအဖြစ်ပြောင်းပြီး label နှင့် error state ကိုညှိသည်။
   const chooseTown = async (town: TownModel) => {
     setSelectedTown(town)
     setSearch('')
@@ -187,6 +191,7 @@ export default function YangonWeatherPage() {
   }
 
   const confirmLocation = () => {
+    // အတည်ပြုထားသည့် coordinates ကို weather-status စာမျက်နှာသို့ URL ဖြင့်ပို့သည်။
     const [latitude, longitude] = position as [number, number]
     const params = new URLSearchParams({
       lat: latitude.toFixed(5),

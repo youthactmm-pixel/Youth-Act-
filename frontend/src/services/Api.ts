@@ -1,6 +1,7 @@
 
 import { withBackendLoading } from './backendLoading'
 
+// ဒီ type များသည် backend route များက JSON ပြန်ပေးသည့် ပုံစံနှင့် ကိုက်ညီသည်။
 export type TownModel = {
   id: string
   town: string
@@ -50,19 +51,12 @@ export type KoboIssueChoice = {
   label: string
 }
 
-export type KoboSection3OptionGroup = {
-  questionName: string
-  questionLabel: string
-  choices: KoboIssueChoice[]
-}
-
 export type KoboFormDetails = {
   id: string
   title: string
   description: string
   questions: KoboFormQuestion[]
   issueTypeChoices: KoboIssueChoice[]
-  section3Options: KoboSection3OptionGroup[]
   participationUrl: string | null
   active: boolean
 }
@@ -124,6 +118,7 @@ export type WeatherStatusResponse = {
 
 const API_BASE_URL = 'https://youth-act-backend.onrender.com'
 
+// Admin token ကို protected backend route များသို့ Bearer token အဖြစ် ပို့သည်။
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('youthact_admin_token')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -137,7 +132,7 @@ function jsonHeaders(): Record<string, string> {
 }
 
 // =========================
-// Town API
+// Town နှင့် weather API — backend ၏ /api/towns နှင့် /api/weather ကို ခေါ်သည်။
 // =========================
 
 export async function fetchWeatherStatus(
@@ -229,7 +224,7 @@ export async function fetchGoogleSheetTowns(): Promise<TownModel[]> {
 }
 
 // =========================
-// Card API
+// Card, project နှင့် story API — ဖတ်ရှုမှုများသည် /api/cards, /api/projects/:id, /api/stories နှင့် ချိတ်ဆက်သည်။
 // =========================
 
 export async function fetchStories(): Promise<StoryModel[]> {
@@ -274,11 +269,13 @@ export async function fetchCardById(
 }
 
 export async function fetchProjectById(
-  projectId: string
+  projectId: string,
+  signal?: AbortSignal
 ): Promise<CardModel | null> {
   return withBackendLoading(async () => {
     const response = await fetch(
-      `${API_BASE_URL}/api/projects/${projectId}`
+      `${API_BASE_URL}/api/projects/${projectId}`,
+      { signal }
     )
 
     if (response.status === 404) {
@@ -335,6 +332,7 @@ export async function createCard(
   })
 }
 
+// Admin card ဖန်တီး/ပြင်ဆင်မှုများသည် backend ရှိ admin ကာကွယ်ထားသော POST/PUT route များကို ခေါ်သည်။
 export async function updateCard(
   cardId: string,
   card: CardCreateInput
@@ -395,11 +393,13 @@ export async function importGoogleSheetCards(sourceUrl: string): Promise<{ impor
   })
 }
 
+// Backend error JSON ပုံစံကွဲနိုင်သဖြင့် အသုံးပြုသူပြနိုင်မည့် message ကို တစ်နေရာတည်းမှ ထုတ်ယူသည်။
 async function readApiError(response: Response, fallback: string) {
   const body = await response.json().catch(() => null) as { message?: string; error?: string } | null
   return body?.message ?? body?.error ?? fallback
 }
 
+// အများပြည်သူမြင်ရသော approved report များနှင့် form metadata ကို backend ၏ public Kobo/climate route များမှ ရယူသည်။
 export async function fetchClimateReports(signal?: AbortSignal): Promise<ClimateReportsResponse> {
   const response = await fetch(`${API_BASE_URL}/api/climate/reports`, { signal })
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to load community reports.'))
@@ -415,6 +415,7 @@ export async function fetchKoboFormSubmissions(assetUid: string, signal?: AbortS
   return response.json() as Promise<ClimateReport[]>
 }
 
+// အောက်ပါ review/sync/image လုပ်ဆောင်ချက်များသည် Bearer auth လိုအပ်သည့် /api/admin/climate route များနှင့် ကိုက်ညီသည်။
 export async function fetchClimateReportsForReview(status: 'pending' | 'approved' = 'pending'): Promise<ClimateReport[]> {
   const params = new URLSearchParams({ status })
   const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports?${params}`, {
@@ -426,7 +427,6 @@ export async function fetchClimateReportsForReview(status: 'pending' | 'approved
 
 export async function syncKoboClimateReports(): Promise<{
   imported: number
-  published: number
   photosFound: number
   photosSaved: number
 }> {
@@ -438,7 +438,6 @@ export async function syncKoboClimateReports(): Promise<{
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to sync Kobo submissions.'))
   return response.json() as Promise<{
     imported: number
-    published: number
     photosFound: number
     photosSaved: number
   }>
@@ -460,6 +459,14 @@ export async function moderateClimateReport(
   })
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to update report moderation.'))
   return response.json() as Promise<ClimateReport>
+}
+
+export async function deleteClimateReport(reportId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports/${encodeURIComponent(reportId)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to delete climate report.'))
 }
 
 export async function fetchClimateReportImage(reportId: string): Promise<Blob> {

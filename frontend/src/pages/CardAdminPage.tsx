@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { CheckCircle2 } from 'lucide-react'
 import { FormattedText, RichTextArea } from '@/components/RichText'
+import SavedChangeDialog from '@/components/SavedChangeDialog'
 import {
   createCard,
   fetchCards,
@@ -24,16 +24,6 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination'
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 
 type CardAdminPageProps = {
   onBack: () => void
@@ -54,6 +44,7 @@ const emptyForm: CardCreateInput = {
 
 const CARDS_PER_PAGE = 6
 
+// Upload ပုံကို အရွယ်လျှော့ပြီး data URL ပြောင်းကာ card API တွင်သိမ်းနိုင်စေသည်။
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image()
@@ -80,6 +71,7 @@ function compressImage(file: File): Promise<string> {
 }
 
 export default function CardAdminPage({ onBack, onLogout, onReviewReports, initialCardId }: CardAdminPageProps) {
+  // Form၊ content library နှင့် save/image processing အခြေအနေများကို သက်ဆိုင်ရာ UI များနှင့် ချိတ်ထားသည်။
   const [form, setForm] = useState<CardCreateInput>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -89,8 +81,10 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
   const [processingImages, setProcessingImages] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [townLoadError, setTownLoadError] = useState('')
-  const [programCreatedOpen, setProgramCreatedOpen] = useState(false)
+  const [savedDialogOpen, setSavedDialogOpen] = useState(false)
+  const [savedDialogMessage, setSavedDialogMessage] = useState('')
 
+  // Town ရွေးချယ်စရာများကို တစ်ကြိမ်တင်ပြီး မရလျှင် select အောက်တွင် error ပြသည်။
   useEffect(() => {
     fetchTowns()
       .then(setTowns)
@@ -100,6 +94,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
       })
   }, [])
 
+  // Card စာရင်းကို ပြန်တင်ပြီး URL မှ edit ID ပါလာလျှင် သက်ဆိုင်ရာ card ကို form ထဲဖြည့်သည်။
   const loadCards = async () => {
     try {
       const nextCards = await fetchCards()
@@ -119,6 +114,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
     loadCards()
   }, [initialCardId])
 
+  // Form ကိုစစ်ဆေးပြီး create/update API ခေါ်ကာ အောင်မြင်လျှင် list နှင့် confirmation dialog ကို ပြန်လည်ညှိသည်။
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -148,16 +144,16 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
     try {
       if (selectedCardId) {
         await updateCard(selectedCardId, payload)
-        setMessage('Card updated successfully.')
+        setSavedDialogMessage('Card updated successfully.')
       } else {
         await createCard(payload)
-        setMessage('')
-        setProgramCreatedOpen(true)
+        setSavedDialogMessage('Card created successfully and added to the content library.')
       }
 
       setForm(emptyForm)
       setSelectedCardId(null)
       await loadCards()
+      setSavedDialogOpen(true)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to save the card.')
     } finally {
@@ -165,6 +161,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
     }
   }
 
+  // ရွေးထားသည့် card ၏တန်ဖိုးများကို form state ထဲဖြည့်ပြီး edit mode ဖွင့်သည်။
   function handleEdit(card: CardModel) {
     setSelectedCardId(card.id)
     setForm({
@@ -179,12 +176,14 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
     setMessage('Editing card: ' + card.title)
   }
 
+  // Edit mode ကိုပိတ်ကာ form အသစ်အတွက် မူလတန်ဖိုးများသို့ ပြန်ထားသည်။
   function handleNewCard() {
     setSelectedCardId(null)
     setForm(emptyForm)
     setMessage('')
   }
 
+  // လက်ရှိစာမျက်နှာတွင် ပြရမည့် card များကိုသာ ခွဲယူကာ page controls နှင့်ချိတ်ထားသည်။
   const pageCount = Math.max(1, Math.ceil(cards.length / CARDS_PER_PAGE))
   const visibleCards = cards.slice((currentPage - 1) * CARDS_PER_PAGE, currentPage * CARDS_PER_PAGE)
 
@@ -274,6 +273,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
               accept="image/*"
               multiple
               onChange={async (event) => {
+                // ရွေးထားသောဖိုင်များကို စစ်ဆေး/ချုံ့ပြီး form.images နှင့် preview UI ကို တစ်ပြိုင်နက် update လုပ်သည်။
                 const files = Array.from(event.target.files ?? [])
                 event.target.value = ''
                 if (files.length === 0) return
@@ -346,6 +346,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
         </form>
       </section>
 
+      {/* API မှရသော cards ကို edit လုပ်နိုင်သည့် paginated library အဖြစ်ပြသည်။ */}
       <section className="card-form-section shell existing-cards-section">
         <div className="existing-cards-heading">
           <div>
@@ -438,22 +439,11 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
         )}
       </section>
 
-      <AlertDialog open={programCreatedOpen} onOpenChange={setProgramCreatedOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia className="text-green-700 bg-green-100">
-              <CheckCircle2 aria-hidden="true" />
-            </AlertDialogMedia>
-            <AlertDialogTitle>Program created successfully</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your program has been added to the content library.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Done</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <SavedChangeDialog
+        open={savedDialogOpen}
+        onOpenChange={setSavedDialogOpen}
+        message={savedDialogMessage}
+      />
     </section>
   )
 }

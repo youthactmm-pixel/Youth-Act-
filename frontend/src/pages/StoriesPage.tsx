@@ -14,6 +14,7 @@ export default function StoriesPage() {
   const [reports, setReports] = useState<ClimateReport[]>([])
   const [reportsError, setReportsError] = useState('')
   const [reportsLoading, setReportsLoading] = useState(true)
+  // အများပြည်သူမြင်နိုင်သော report များကိုယူပြီး request ကို cleanup လုပ်ကာ loading/error ကိုညှိသည်။
   useEffect(() => {
     const controller = new AbortController()
 
@@ -31,6 +32,7 @@ export default function StoriesPage() {
     return () => controller.abort()
   }, [])
 
+  // ရွေးချယ်မှုကုဒ်များကို ဖတ်ရလွယ်သည့် issue အမည်များအဖြစ် ပြောင်းပေးသည်။
   function displayIssueType(issueType: string) {
     if (!issueType) return 'Not specified'
 

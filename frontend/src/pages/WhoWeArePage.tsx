@@ -75,6 +75,7 @@ export default function WhoWeArePage() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  // လမ်းကြောင်းအလိုက် မစ်ရှင်၊ ခေါင်းဆောင်မှု သို့မဟုတ် မိတ်ဖက်ဆိုင်ရာ အကြောင်းအရာကို ရွေးသည်။
   const pageKey: PageKey = pathname === '/leadership'
     ? 'leadership'
     : pathname === '/partnerships'
@@ -115,6 +116,7 @@ export default function WhoWeArePage() {
         </div>
       </aside>
       <main>
+        {/* ရွေးထားသော pageKey အလိုက် သက်ဆိုင်ရာအပိုင်းကိုသာ ပြသသည်။ */}
         <section className="who-hero shell">
           <div className="who-hero-copy">
             <p className="who-eyebrow"><span />{page.eyebrow}</p>

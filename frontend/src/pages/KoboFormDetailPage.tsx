@@ -22,6 +22,7 @@ export default function KoboFormDetailPage() {
     error: string
   } | null>(null)
 
+  // form အချက်အလက်နှင့် တင်သွင်းချက်များကို သီးခြားယူကာ စာမျက်နှာမှထွက်လျှင် request များကိုဖျက်သိမ်းသည်။
   useEffect(() => {
     if (!id) return
 
@@ -99,6 +100,7 @@ export default function KoboFormDetailPage() {
             </div>
           )}
 
+          {/* form ရလာမှ မိတ်ဆက်အချက်အလက်နှင့် ဖြေဆိုရန်လင့်ခ်ကို ပြသသည်။ */}
           {!loading && form && (
             <>
               <header className="kobo-form-hero">

@@ -8,30 +8,43 @@ import type { CardModel } from '@/services/Api'
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const [project, setProject] = useState<CardModel | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [loadState, setLoadState] = useState<{
+    id: string | undefined | null
+    project: CardModel | null
+    error: string
+  }>({ id: null, project: null, error: '' })
+  const currentLoad = loadState.id === id
+  const loading = !currentLoad
+  const project = currentLoad ? loadState.project : null
+  const error = !id ? 'Project not found.' : currentLoad ? loadState.error : ''
 
+  // URL ရှိ project ID အလိုက် အသေးစိတ်အချက်အလက်ယူပြီး stale request များကို ဖယ်ရှားသည်။
   useEffect(() => {
+    const controller = new AbortController()
+
     if (!id) {
-      setError('Project not found.')
-      setLoading(false)
-      return
+      return () => controller.abort()
     }
 
-    fetchProjectById(id)
+    fetchProjectById(id, controller.signal)
       .then((data) => {
+        if (controller.signal.aborted) return
         if (!data) {
-          setError('Project not found.')
+          setLoadState({ id, project: null, error: 'Project not found.' })
           return
         }
 
-        setProject(data)
+        setLoadState({ id, project: data, error: '' })
       })
-      .catch(() => setError('Unable to load this project right now.'))
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setLoadState({ id, project: null, error: 'Unable to load this project right now.' })
+        }
+      })
+    return () => controller.abort()
   }, [id])
 
+  // ထပ်နေသောပုံများကိုဖယ်ပြီး gallery အတွက် ပြသမည့်ပုံစာရင်းကို ပြင်ဆင်သည်။
   const projectImages = project
     ? [...new Set(project.images?.length ? project.images : [project.image])].filter(Boolean)
     : []
@@ -41,9 +54,30 @@ export default function ProjectDetailPage() {
       <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
       <main>
         {loading && (
-          <section className="project-detail-page shell">
-            <p className="eyebrow">Loading project</p>
-            <h1>Just a moment.</h1>
+          <section className="project-detail-page shell project-detail-loading" role="status" aria-label="Loading project details">
+            <span className="detail-loading-announcement">Loading project details…</span>
+            <div className="project-detail-loading-heading" aria-hidden="true">
+              <span className="detail-skeleton project-detail-skeleton-kicker" />
+              <span className="detail-skeleton project-detail-skeleton-title" />
+              <span className="detail-skeleton project-detail-skeleton-title-short" />
+            </div>
+            <div className="project-detail-loading-gallery" aria-hidden="true">
+              <span className="detail-skeleton project-detail-skeleton-photo project-detail-skeleton-photo-featured" />
+              <span className="detail-skeleton project-detail-skeleton-photo" />
+              <span className="detail-skeleton project-detail-skeleton-photo" />
+            </div>
+            <div className="project-detail-loading-content" aria-hidden="true">
+              <div>
+                <span className="detail-skeleton project-detail-skeleton-label" />
+                <span className="detail-skeleton project-detail-skeleton-label-short" />
+              </div>
+              <div className="project-detail-skeleton-copy">
+                <span className="detail-skeleton" />
+                <span className="detail-skeleton" />
+                <span className="detail-skeleton" />
+                <span className="detail-skeleton project-detail-skeleton-line-short" />
+              </div>
+            </div>
           </section>
         )}
 

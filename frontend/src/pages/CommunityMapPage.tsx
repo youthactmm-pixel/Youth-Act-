@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CircleMarker, GeoJSON, MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
 import { divIcon, type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
@@ -6,7 +6,7 @@ import { ArrowLeft, CloudSun, Droplets, FileText, MapPin, RefreshCw, Thermometer
 import 'leaflet/dist/leaflet.css'
 import TopNavbar from '@/components/ui/topnavbar'
 import { FormattedText } from '@/components/RichText'
-import { fetchCards, fetchClimateReports, fetchKoboFormDetails, fetchWeatherStatus, getPublicClimateReportImageUrl, type CardModel, type ClimateReport, type ClimateReportsResponse, type KoboFormDetails, type KoboIssueChoice, type WeatherStatusResponse } from '@/services/Api'
+import { fetchCards, fetchClimateReports, fetchKoboFormDetails, fetchWeatherStatus, getPublicClimateReportImageUrl, type CardModel, type ClimateReport, type ClimateReportsResponse, type KoboIssueChoice, type WeatherStatusResponse } from '@/services/Api'
 
 const DEFAULT_CENTER: LatLngExpression = [19, 96]
 const DEFAULT_WEATHER_LOCATION = [16.8661, 96.1951] as const
@@ -56,6 +56,7 @@ function MapLocationPicker({ onSelect }: { onSelect: (point: [number, number]) =
   return null
 }
 
+// Report များကို 0.05° အကွက်များအလိုက် စုစည်းပြီး severity ရမှတ်ပါသော GeoJSON risk zone များဖန်တီးသည်။
 function buildRiskZones(reports: ClimateReport[]): ClimateReportsResponse['riskZones'] {
   const gridSize = 0.05
   const scores: Record<ClimateReport['severity'], number> = { low: 1, moderate: 2, high: 3, critical: 4 }
@@ -98,6 +99,7 @@ function normalizeIssueType(issue: string) {
 }
 
 function issueTypeChoices(issue: string) {
+  // Kobo ရွေးချယ်မှုကုဒ်များနှင့် comma ခွဲထားသောအမည်များကို တူညီသောစာရင်းပုံစံသို့ပြောင်းသည်။
   const trimmed = issue.trim()
   if (!trimmed) return []
   const hasKoboChoiceCodes = /^[\w-]+(?:\s+[\w-]+)*$/u.test(trimmed) && trimmed.includes('_')
@@ -121,6 +123,8 @@ function displayIssueType(issue: string) {
 
 export default function CommunityMapPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const observationsRef = useRef<HTMLElement | null>(null)
+  const firstObservationCardRef = useRef<HTMLElement | null>(null)
   const [reports, setReports] = useState<ClimateReport[]>([])
   const [serverRiskZones, setServerRiskZones] = useState<ClimateReportsResponse['riskZones'] | null>(null)
   const [lastUpdated, setLastUpdated] = useState('')
@@ -130,9 +134,7 @@ export default function CommunityMapPage() {
   const [issueType, setIssueType] = useState('')
   const [severity, setSeverity] = useState('')
   const [koboIssueChoices, setKoboIssueChoices] = useState<KoboIssueChoice[]>([])
-  const [koboSection3Options, setKoboSection3Options] = useState<KoboFormDetails['section3Options']>([])
   const [koboIssueChoicesError, setKoboIssueChoicesError] = useState('')
-  const [koboIssueChoicesLoading, setKoboIssueChoicesLoading] = useState(true)
   const [projects, setProjects] = useState<CardModel[]>([])
   const [projectsError, setProjectsError] = useState('')
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -156,6 +158,7 @@ export default function CommunityMapPage() {
   const locationLabel = searchParams.get('label')?.trim() || 'Yangon, Myanmar'
   const weatherRequestKey = `${latitude.toFixed(5)}:${longitude.toFixed(5)}:${weatherReloadKey}`
 
+  // URL တွင်ရွေးထားသော coordinates အတွက် မိုးလေဝသကိုယူပြီး ပြောင်းလဲသည့် request ကိုဖျက်သိမ်းသည်။
   useEffect(() => {
     const controller = new AbortController()
     fetchWeatherStatus(latitude, longitude, controller.signal)
@@ -171,6 +174,7 @@ export default function CommunityMapPage() {
     return () => controller.abort()
   }, [latitude, longitude, weatherReloadKey, weatherRequestKey])
 
+  // မိုးလေဝသဒေတာအသစ်ရရန် ဆယ်မိနစ်တိုင်း refresh key ကိုတိုးသည်။
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setWeatherReloadKey((key) => key + 1)
@@ -178,6 +182,7 @@ export default function CommunityMapPage() {
     return () => window.clearInterval(intervalId)
   }, [])
 
+  // အတည်ပြုထားသော report များ၊ server risk zone များနှင့် update အချိန်ကို တစ်ကြိမ်တည်းပြန်ယူသည်။
   const refreshReports = useCallback(async () => {
     try {
       const data = await fetchClimateReports()
@@ -192,54 +197,14 @@ export default function CommunityMapPage() {
     }
   }, [])
 
+  // Report စာရင်းကို စတင်တင်ပြီး မိနစ်တိုင်း update လုပ်ကာ interval ကို cleanup လုပ်သည်။
   useEffect(() => {
     void refreshReports()
     const intervalId = window.setInterval(() => void refreshReports(), 60_000)
     return () => window.clearInterval(intervalId)
   }, [refreshReports])
 
-  useEffect(() => {
-    const controller = new AbortController()
-    fetchKoboFormDetails(KOBO_CLIMATE_FORM_ID, controller.signal)
-      .then((form) => {
-        const hasValidChoice = (choice: { value: string; label: string }) =>
-          choice &&
-          typeof choice.value === 'string' &&
-          typeof choice.label === 'string'
-        const hasValidSection3Options =
-          Array.isArray(form.section3Options) &&
-          form.section3Options.every((group) =>
-            group &&
-            typeof group.questionName === 'string' &&
-            typeof group.questionLabel === 'string' &&
-            Array.isArray(group.choices) &&
-            group.choices.every(hasValidChoice)
-          )
-        const hasValidIssueChoices =
-          Array.isArray(form.issueTypeChoices) && form.issueTypeChoices.every(hasValidChoice)
-        if (!hasValidSection3Options || !hasValidIssueChoices) {
-          throw new Error(
-            'The Kobo metadata API is outdated. Deploy the latest backend to load Section 3 options.'
-          )
-        }
-        setKoboIssueChoices(form.issueTypeChoices)
-        setKoboSection3Options(form.section3Options)
-        setKoboIssueChoicesError('')
-      })
-      .catch((fetchError: unknown) => {
-        if (!controller.signal.aborted) {
-          setKoboIssueChoicesError(
-            fetchError instanceof Error ? fetchError.message : 'Section 3 options could not be loaded.'
-          )
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setKoboIssueChoicesLoading(false)
-      })
-
-    return () => controller.abort()
-  }, [])
-
+  // မြေပုံတွင်တည်နေရာအလိုက်ဖော်ပြမည့် ပရောဂျက်ကတ်များကို သီးခြားယူသည်။
   useEffect(() => {
     fetchCards(false)
       .then(setProjects)
@@ -249,19 +214,41 @@ export default function CommunityMapPage() {
       .finally(() => setProjectsLoading(false))
   }, [])
 
-  const townships = useMemo(() => [...new Set(reports.map((report) => report.township))].sort(), [reports])
-  const issueChoices = Array.isArray(koboIssueChoices) ? koboIssueChoices : []
+  // စစ်ထုတ်စာရင်းနှင့် map အတွက် public ဖြစ်သော approved report များကိုသာသုံးသည်။
+  const approvedReports = useMemo(
+    () => reports.filter((report) => report.status === 'approved'),
+    [reports]
+  )
+  const townships = useMemo(() => [...new Set(approvedReports.map((report) => report.township))].sort(), [approvedReports])
+  const issueTypes = useMemo(
+    () => [...new Set(approvedReports.flatMap(reportIssueTypes))].sort((a, b) => a.localeCompare(b)),
+    [approvedReports]
+  )
+  const issueFilterChoices = useMemo(
+    () => koboIssueChoices.length
+      ? [...new Set(koboIssueChoices.map(({ label }) => label))]
+      : issueTypes,
+    [issueTypes, koboIssueChoices]
+  )
   const selectedIssueType = normalizeIssueType(issueType)
-  const filteredReports = useMemo(() => reports.filter((report) => {
+  const filteredReports = useMemo(() => approvedReports.filter((report) => {
     return (!township || report.township === township)
       && (!selectedIssueType || reportIssueTypes(report).some((choice) => normalizeIssueType(choice) === selectedIssueType))
       && (!severity || report.severity === severity)
-  }), [reports, township, selectedIssueType, severity])
+  }), [approvedReports, township, selectedIssueType, severity])
+  // Issue filter ပြောင်းလျှင် သက်ဆိုင်ရာ observation ကတ်များရှိရာသို့ ရွှေ့ပြသည်။
+  useEffect(() => {
+    if (!issueType) return
+    const target = firstObservationCardRef.current ?? observationsRef.current
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [issueType, loading])
   const hasActiveFilters = Boolean(township || issueType || severity)
+  // Filter သုံးထားချိန်တွင် လက်ရှိ report များမှ zone ပြန်တွက်ပြီး၊ မဟုတ်လျှင် server zone ကိုသုံးသည်။
   const riskZones = useMemo(
     () => hasActiveFilters || !serverRiskZones ? buildRiskZones(filteredReports) : serverRiskZones,
     [filteredReports, hasActiveFilters, serverRiskZones]
   )
+  // Map ပေါ်တွင်နှိပ်ထားသောနေရာကို URL ထဲသိမ်း၍ မိုးလေဝသ request ကို coordinates အသစ်ဖြင့်လုပ်စေသည်။
   const selectWeatherLocation = (point: [number, number]) => {
     setSearchParams((currentParams) => {
       const nextParams = new URLSearchParams(currentParams)
@@ -311,12 +298,11 @@ export default function CommunityMapPage() {
 
         <section className="community-filters" aria-label="Filter community reports">
           <label><span>Township</span><select value={township} onChange={(event) => setTownship(event.target.value)}><option value="">All townships</option>{townships.map((town) => <option key={town}>{town}</option>)}</select></label>
-          <label>
+          <label><span>Issue Type</span>
             <select aria-label="Q8. What environmental problem did you notice?" value={issueType} onChange={(event) => setIssueType(event.target.value)}>
               <option value="">Show all</option>
-              {issueChoices.map(({ value, label }) => <option key={value} value={label}>{label}</option>)}
+              {issueFilterChoices.map((issue) => <option key={issue} value={issue}>{issueTypeLabel(issue)}</option>)}
             </select>
-            {koboIssueChoicesLoading && <small role="status">Loading Section 3 options…</small>}
             {koboIssueChoicesError && <small className="field-error" role="status">{koboIssueChoicesError}</small>}
           </label>
           <label><span>Severity</span><select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="">All levels</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
@@ -324,6 +310,7 @@ export default function CommunityMapPage() {
 
         {error && <div className="community-map-error" role="alert">{error}<button type="button" onClick={() => void refreshReports()}>Try again</button></div>}
 
+        {/* GeoJSON အန္တရာယ်အကွက်၊ report pin နှင့် ရွေးထားသောရာသီဥတုတည်နေရာကို မြေပုံပေါ်တွင်ပေါင်းပြသည်။ */}
         <section className="community-map-layout community-dashboard-layout" aria-label="Community reports and local weather">
           <div className="community-map-frame">
             <MapContainer center={DEFAULT_CENTER} zoom={6} scrollWheelZoom className="community-leaflet-map">
@@ -456,17 +443,7 @@ export default function CommunityMapPage() {
               {Object.entries(riskColors).map(([tier, color]) => <div className="community-legend-row" key={tier}><span className="legend-square" style={{ backgroundColor: color }} />{tier[0].toUpperCase() + tier.slice(1)}</div>)}
               <p className="community-methodology">Each 0.05° grid cell (~5 km) sums approved report severity points: low 1, moderate 2, high 3, critical 4. Scores 1–3 = watch, 4–7 = moderate, 8+ = high. This is a screening index to guide assessment, not an official hazard boundary or forecast.</p>
               <p className="community-legend-section">Issue categories</p>
-              <p className="community-category-note">
-                {koboIssueChoicesLoading
-                  ? 'Loading Section 3 options…'
-                  : koboIssueChoicesError
-                    ? koboIssueChoicesError
-                    : koboSection3Options.length
-                      ? koboSection3Options
-                        .map(({ questionLabel, choices }) => `${questionLabel}: ${choices.map(({ label }) => label).join(', ')}`)
-                        .join(' · ')
-                      : 'No Section 3 options are configured.'}
-              </p>
+              <p className="community-category-note">{issueTypes.length ? issueTypes.join(' · ') : 'Categories appear when approved reports are available.'}</p>
             </div>
             <div className="community-report-list">
               {loading && reports.length === 0 ? <p className="community-empty">Loading approved reports…</p> : filteredReports.length === 0 ? <p className="community-empty">No approved reports match these filters.</p> : filteredReports.slice(0, 30).map((report) => (
@@ -479,7 +456,8 @@ export default function CommunityMapPage() {
             </div>
           </aside>
         </section>
-        <section className="community-observations" aria-labelledby="community-observations-title">
+        {/* အပေါ်က filter များနှင့်တူညီသော filteredReports ကို observation ကတ်များအဖြစ်ပြသည်။ */}
+        <section ref={observationsRef} className="community-observations" aria-labelledby="community-observations-title">
           <div className="community-observations-heading">
             <div>
               <p className="community-kicker">KOBO TOOLBOX · APPROVED SUBMISSIONS</p>
@@ -496,8 +474,8 @@ export default function CommunityMapPage() {
             </p>
           ) : (
             <div className="community-observation-grid">
-              {filteredReports.slice(0, 30).map((report) => (
-                <article className="community-observation-card" key={report.id}>
+              {filteredReports.slice(0, 30).map((report, index) => (
+                <article ref={index === 0 ? firstObservationCardRef : undefined} className="community-observation-card" key={report.id}>
                   {report.imageUrl && (
                     <img
                       className="community-observation-image"
