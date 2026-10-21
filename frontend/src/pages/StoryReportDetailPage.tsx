@@ -78,7 +78,7 @@ export default function StoryReportDetailPage() {
 
   return (
     <div className="app-shell inner-page">
-      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+      <TopNavbar />
       <main>
         <section className="story-report-detail shell">
           <Link className="story-report-back" to="/stories"><ArrowLeft size={16} /> All stories</Link>

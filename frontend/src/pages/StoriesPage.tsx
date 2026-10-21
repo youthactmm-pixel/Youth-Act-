@@ -66,7 +66,7 @@ export default function StoriesPage() {
 
   return (
     <div className="app-shell inner-page">
-      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+      <TopNavbar />
       <main>
         <section className="stories-hero shell">
           <div className="stories-hero-copy">

@@ -7,6 +7,7 @@ import {
   fetchTowns,
   updateCard,
   type CardCreateInput,
+  type CardDay,
   type CardModel,
   type TownModel,
 } from '../services/Api'
@@ -40,9 +41,11 @@ const emptyForm: CardCreateInput = {
   category: 'program',
   status: 'active',
   town: '',
+  days: [],
 }
 
 const CARDS_PER_PAGE = 6
+const MAX_CARD_IMAGE_DATA_SIZE = 8 * 1024 * 1024
 
 // Upload ပုံကို အရွယ်လျှော့ပြီး data URL ပြောင်းကာ card API တွင်သိမ်းနိုင်စေသည်။
 function compressImage(file: File): Promise<string> {
@@ -83,6 +86,59 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
   const [townLoadError, setTownLoadError] = useState('')
   const [savedDialogOpen, setSavedDialogOpen] = useState(false)
   const [savedDialogMessage, setSavedDialogMessage] = useState('')
+
+  function updateDay(dayIndex: number, updates: Partial<CardDay>) {
+    setForm((current) => ({
+      ...current,
+      days: (current.days ?? []).map((day, index) =>
+        index === dayIndex ? { ...day, ...updates } : day
+      ),
+    }))
+  }
+
+  function addDay() {
+    setForm((current) => {
+      const days = current.days ?? []
+      return {
+        ...current,
+        days: [...days, { title: `Day ${days.length + 1}`, description: '', image: '' }],
+      }
+    })
+    setMessage('')
+  }
+
+  function removeDay(dayIndex: number) {
+    setForm((current) => ({
+      ...current,
+      days: (current.days ?? []).filter((_, index) => index !== dayIndex),
+    }))
+  }
+
+  async function attachDayImage(dayIndex: number, file: File) {
+    if (file.size > 15 * 1024 * 1024) {
+      setMessage('Each image must be smaller than 15 MB.')
+      return
+    }
+
+    setProcessingImages(true)
+    setMessage('')
+    try {
+      const image = await compressImage(file)
+      const coverImages = form.images?.length ? form.images : form.image ? [form.image] : []
+      const dayImages = (form.days ?? []).map((day, index) =>
+        index === dayIndex ? image : day.image ?? ''
+      )
+      const totalImageSize = [...coverImages, ...dayImages].reduce((total, item) => total + item.length, 0)
+      if (totalImageSize > MAX_CARD_IMAGE_DATA_SIZE) {
+        throw new Error('Card images and day photos must total 8 MB or less.')
+      }
+      updateDay(dayIndex, { image })
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to process the selected image.')
+    } finally {
+      setProcessingImages(false)
+    }
+  }
 
   // Town ရွေးချယ်စရာများကို တစ်ကြိမ်တင်ပြီး မရလျှင် select အောက်တွင် error ပြသည်။
   useEffect(() => {
@@ -126,6 +182,11 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
       town: form.town?.trim() ?? '',
       image: form.images?.[0] ?? form.image,
       images: form.images?.length ? form.images : [form.image],
+      days: (form.days ?? []).map((day) => ({
+        title: day.title.trim(),
+        description: day.description.trim(),
+        image: day.image ?? '',
+      })),
     }
 
     if (!payload.title || !payload.description || !payload.category || !payload.status || !payload.town || !payload.images[0]) {
@@ -135,6 +196,11 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
 
     if (processingImages) {
       setMessage('Wait for selected images to finish processing.')
+      return
+    }
+
+    if (payload.days.some((day) => !day.title || !day.description)) {
+      setMessage('Each day section needs a title and description.')
       return
     }
 
@@ -172,6 +238,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
       category: card.category,
       status: card.status,
       town: card.town ?? '',
+      days: card.days ?? [],
     })
     setMessage('Editing card: ' + card.title)
   }
@@ -192,7 +259,7 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
       <div className="admin-page-top shell">
         <div>
           <p className="eyebrow">YouthAct Dashboard</p>
-          <h1>{selectedCardId ? 'Edit card' : 'Create a card'}</h1>
+          <h1>{selectedCardId ? 'Edit card' : 'Create a Project'}</h1>
         </div>
         <div className="admin-page-top-actions">
           <button className="button button-dark" type="button" onClick={onReviewReports}>
@@ -266,12 +333,80 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
             />
           </label>
 
+          <section className="card-day-editor field-full" aria-labelledby="card-day-editor-title">
+            <div className="card-day-editor-heading">
+              <div>
+                <h2 id="card-day-editor-title">Project days</h2>
+                <p>Leave this section empty if the project has no day-by-day details. Each added day needs a title and description; a photo is optional.</p>
+              </div>
+              <button className="card-day-add-button" type="button" onClick={addDay} disabled={processingImages}>
+                Add a day
+              </button>
+            </div>
+            {(form.days ?? []).map((day, index) => (
+              <fieldset className="card-day-editor-item" key={index}>
+                <legend>Day {index + 1}</legend>
+                <button
+                  className="card-day-remove-button"
+                  type="button"
+                  onClick={() => removeDay(index)}
+                  disabled={processingImages}
+                  aria-label={`Remove day ${index + 1}`}
+                >
+                  Remove day
+                </button>
+                <label className="field">
+                  <span>Day title</span>
+                  <input
+                    type="text"
+                    maxLength={120}
+                    value={day.title}
+                    onChange={(event) => updateDay(index, { title: event.target.value })}
+                    placeholder={`Day ${index + 1}`}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Description</span>
+                  <RichTextArea
+                    value={day.description}
+                    onChange={(description) => updateDay(index, { description })}
+                    placeholder={`What happened on day ${index + 1}?`}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Day photo (optional)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={processingImages}
+                    onChange={(event) => {
+                      const [file] = Array.from(event.target.files ?? [])
+                      event.target.value = ''
+                      if (file) void attachDayImage(index, file)
+                    }}
+                  />
+                  {day.image && (
+                    <div className="card-image-preview card-day-image-preview">
+                      <img src={day.image} alt={`Photo for ${day.title || `day ${index + 1}`}`} />
+                      <button type="button" onClick={() => updateDay(index, { image: '' })}>
+                        Remove photo
+                      </button>
+                    </div>
+                  )}
+                </label>
+              </fieldset>
+            ))}
+          </section>
+
           <label className="field field-full">
             <span>Add Images (up to 8)</span>
             <input
               type="file"
               accept="image/*"
               multiple
+              disabled={processingImages}
               onChange={async (event) => {
                 // ရွေးထားသောဖိုင်များကို စစ်ဆေး/ချုံ့ပြီး form.images နှင့် preview UI ကို တစ်ပြိုင်နက် update လုပ်သည်။
                 const files = Array.from(event.target.files ?? [])
@@ -293,8 +428,9 @@ export default function CardAdminPage({ onBack, onLogout, onReviewReports, initi
                 try {
                   const newImages = await Promise.all(files.map(compressImage))
                   const allImages = [...currentImages, ...newImages]
-                  if (allImages.reduce((total, image) => total + image.length, 0) > 8 * 1024 * 1024) {
-                    throw new Error('The combined images are too large. Choose fewer or smaller images.')
+                  const dayImageSize = (form.days ?? []).reduce((total, day) => total + (day.image?.length ?? 0), 0)
+                  if (allImages.reduce((total, image) => total + image.length, dayImageSize) > MAX_CARD_IMAGE_DATA_SIZE) {
+                    throw new Error('Card images and day photos must total 8 MB or less.')
                   }
                   setForm((current) => ({
                     ...current,

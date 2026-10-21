@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { CircleMarker, GeoJSON, MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
+import { CircleMarker, GeoJSON, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import { divIcon, type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
 import { ArrowLeft, CloudSun, Droplets, FileText, MapPin, RefreshCw, Thermometer, Wind } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
@@ -53,6 +53,29 @@ function MapLocationPicker({ onSelect }: { onSelect: (point: [number, number]) =
       onSelect([event.latlng.lat, event.latlng.lng])
     },
   })
+  return null
+}
+
+function MapTownshipZoom({ township, reports }: { township: string; reports: ClimateReport[] }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!township || reports.length === 0) return
+
+    const locations = reports.map((report) => [report.latitude, report.longitude] as [number, number])
+    if (locations.length === 1) {
+      map.flyTo(locations[0], Math.max(map.getZoom(), 12), { duration: 0.8 })
+      return
+    }
+
+    map.fitBounds(locations, {
+      padding: [36, 36],
+      maxZoom: 12,
+      animate: true,
+      duration: 0.8,
+    })
+  }, [map, reports, township])
+
   return null
 }
 
@@ -119,6 +142,10 @@ function reportIssueTypes(report: ClimateReport) {
 
 function displayIssueType(issue: string) {
   return issueTypeChoices(issue).map(issueTypeLabel).join(', ')
+}
+
+function displayTownship(township: string) {
+  return township.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim().toLocaleUpperCase()
 }
 
 export default function CommunityMapPage() {
@@ -236,6 +263,10 @@ export default function CommunityMapPage() {
       && (!selectedIssueType || reportIssueTypes(report).some((choice) => normalizeIssueType(choice) === selectedIssueType))
       && (!severity || report.severity === severity)
   }), [approvedReports, township, selectedIssueType, severity])
+  const selectedTownshipReports = useMemo(
+    () => township ? approvedReports.filter((report) => report.township === township) : [],
+    [approvedReports, township]
+  )
   // Issue filter ပြောင်းလျှင် သက်ဆိုင်ရာ observation ကတ်များရှိရာသို့ ရွှေ့ပြသည်။
   useEffect(() => {
     if (!issueType) return
@@ -276,7 +307,7 @@ export default function CommunityMapPage() {
 
   return (
     <main className="community-map-page">
-      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+      <TopNavbar />
       <div className="community-map-shell">
         <header className="community-map-heading">
           <div>
@@ -289,7 +320,6 @@ export default function CommunityMapPage() {
             <Link className="community-location-link" to="/kobo-form/asVctXHHGzNBbQ8smxu4Ro">
               <FileText size={15} /> Share an observation
             </Link>
-            <Link className="community-location-link" to="/yangon-weather"><MapPin size={15} /> Choose a location</Link>
             <button className="community-refresh" type="button" onClick={() => void refreshReports()} disabled={loading}>
               <RefreshCw size={16} className={loading ? 'community-refresh-spin' : ''} /> Refresh reports
             </button>
@@ -297,7 +327,7 @@ export default function CommunityMapPage() {
         </header>
 
         <section className="community-filters" aria-label="Filter community reports">
-          <label><span>Township</span><select value={township} onChange={(event) => setTownship(event.target.value)}><option value="">All townships</option>{townships.map((town) => <option key={town}>{town}</option>)}</select></label>
+          <label><span>Township</span><select value={township} onChange={(event) => setTownship(event.target.value)}><option value="">All townships</option>{townships.map((town) => <option key={town} value={town}>{displayTownship(town)}</option>)}</select></label>
           <label><span>Issue Type</span>
             <select aria-label="Q8. What environmental problem did you notice?" value={issueType} onChange={(event) => setIssueType(event.target.value)}>
               <option value="">Show all</option>
@@ -315,6 +345,7 @@ export default function CommunityMapPage() {
           <div className="community-map-frame">
             <MapContainer center={DEFAULT_CENTER} zoom={6} scrollWheelZoom className="community-leaflet-map">
               <MapLocationPicker onSelect={selectWeatherLocation} />
+              <MapTownshipZoom township={township} reports={selectedTownshipReports} />
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -349,7 +380,7 @@ export default function CommunityMapPage() {
                           onError={(event) => { event.currentTarget.hidden = true }}
                         />
                       )}
-                      <span>{report.township} · {readableDate(report.observationDate)}</span>
+                      <span>{displayTownship(report.township)} · {readableDate(report.observationDate)}</span>
                       <span>Severity: {report.severity}</span>
                       <span className={report.verified ? 'verified-label' : 'unverified-label'}>{report.verified ? 'Verified report' : 'Unverified report'}</span>
                       <FormattedText as="p" text={report.description ?? ''} />
@@ -449,7 +480,7 @@ export default function CommunityMapPage() {
               {loading && reports.length === 0 ? <p className="community-empty">Loading approved reports…</p> : filteredReports.length === 0 ? <p className="community-empty">No approved reports match these filters.</p> : filteredReports.slice(0, 30).map((report) => (
                 <article className="community-report-item" key={report.id}>
                   <span className="community-report-dot" style={{ backgroundColor: severityColors[report.severity] }} />
-                  <div><strong>{displayIssueType(report.issueType)}</strong><p>{report.township} · {readableDate(report.observationDate)}</p><span className={report.verified ? 'verified-label' : 'unverified-label'}>{report.verified ? 'Verified' : 'Unverified'}</span></div>
+                  <div><strong>{displayIssueType(report.issueType)}</strong><p>{displayTownship(report.township)} · {readableDate(report.observationDate)}</p><span className={report.verified ? 'verified-label' : 'unverified-label'}>{report.verified ? 'Verified' : 'Unverified'}</span></div>
                 </article>
               ))}
               {filteredReports.length > 30 && <p className="community-empty">Showing 30 of {filteredReports.length} reports; all reports remain visible on the map.</p>}
@@ -480,7 +511,7 @@ export default function CommunityMapPage() {
                     <img
                       className="community-observation-image"
                       src={getPublicClimateReportImageUrl(report.imageUrl)}
-                      alt={`Submitted photo for ${displayIssueType(report.issueType)} in ${report.township}`}
+                      alt={`Submitted photo for ${displayIssueType(report.issueType)} in ${displayTownship(report.township)}`}
                       loading="lazy"
                       onError={(event) => { event.currentTarget.hidden = true }}
                     />
@@ -497,7 +528,7 @@ export default function CommunityMapPage() {
                       <li key={`${report.id}-${choice}`}>{issueTypeLabel(choice)}</li>
                     ))}
                   </ul>
-                  <p className="community-observation-location">{report.township} · {readableDate(report.observationDate)}</p>
+                  <p className="community-observation-location">{displayTownship(report.township)} · {readableDate(report.observationDate)}</p>
                   {report.description ? (
                     <FormattedText as="p" className="community-observation-description" text={report.description} />
                   ) : (

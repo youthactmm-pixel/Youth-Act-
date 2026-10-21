@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import '@/App.css'
 import {
   Carousel,
@@ -30,12 +30,8 @@ import Footer from '@/components/ui/footer'
  * @returns {JSX.Element} The rendered application component
  */
 export function HomePage() {
-  const navigate = useNavigate()
-
   // State hooks for managing application data and UI state
   const [programs, setPrograms] = useState<CardModel[]>([]); // Array of program cards
-  const [whoWeAreOpen, setWhoWeAreOpen] = useState(false); // State for "Who We Are" dropdown menu
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // State for mobile menu visibility
 
   // ပင်မစာမျက်နှာ carousel အတွက် ပရိုဂရမ်ကတ်များကိုယူပြီး မအောင်မြင်လျှင် ဗလာစာရင်းပြသည်။
   const loadPrograms = () => {
@@ -138,54 +134,7 @@ export function HomePage() {
 
   return (
     <div className="app-shell">
-      <TopNavbar
-        mobileMenuOpen={mobileMenuOpen}
-        onMobileMenuToggle={() => setMobileMenuOpen((open) => !open)}
-      />
-      <div className={`mobile-nav-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} />
-      <aside className={`mobile-nav-drawer ${mobileMenuOpen ? 'open' : ''}`}> 
-        <div className="mobile-nav-drawer-header">
-          <span className="brand brand-mobile">
-          <span className="brand-mark"><img src="/tran-logo.png" alt="YouthAct logo" /></span>           
-            <span>Youth<span>Act</span></span>
-          </span>
-          <button className="mobile-menu-close" type="button" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)}>×</button>
-        </div>
-
-        <div className="mobile-nav-drawer-content">
-          <div className="mobile-nav-section">
-            <div className="nav-dropdown-mobile">
-              <button className="nav-dropdown-button" onClick={() => setWhoWeAreOpen(!whoWeAreOpen)}>
-                <span className="nav-dropdown-label">Who We are</span>
-                <span className={`nav-drop-icon ${whoWeAreOpen ? "open" : ""}`}>▼</span>
-              </button>
-
-              {whoWeAreOpen && (
-                <div className="nav-dropdown-children-mobile">
-                  <a href="/about">About us</a>
-                  <a href="/mission">Mission and values</a>
-                  <a href="/leadership">Leadership</a>
-                  <a href="/policies">Policies</a>
-                  <a href="/partnerships">Partnerships</a>
-                </div>
-              )}
-            </div>
-
-            <a className="mobile-nav-link" href="/about" onClick={() => setMobileMenuOpen(false)}>About us</a>
-            <a className="mobile-nav-link" href="/programs" onClick={() => setMobileMenuOpen(false)}>Programs</a>
-            <a className="mobile-nav-link" href="/stories" onClick={() => setMobileMenuOpen(false)}>Stories</a>
-            <button className="mobile-nav-link nav-weather" type="button" onClick={() => {
-              navigate('/yangon-weather')
-              setMobileMenuOpen(false)
-            }}>Weather</button>
-          </div>
-
-          <button className="mobile-nav-cta" type="button" onClick={() => {
-            navigate('/admin')
-            setMobileMenuOpen(false)
-          }}>Login</button>
-        </div>
-      </aside>
+      <TopNavbar />
 
       {renderHomePage()}
     </div>

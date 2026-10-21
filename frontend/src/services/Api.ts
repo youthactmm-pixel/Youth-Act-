@@ -18,6 +18,13 @@ export type CardModel = {
   town?: string
   image: string
   images?: string[]
+  days?: CardDay[]
+}
+
+export type CardDay = {
+  title: string
+  description: string
+  image?: string
 }
 
 export type CardCreateInput = {
@@ -28,6 +35,7 @@ export type CardCreateInput = {
   category: string
   status: string
   town?: string
+  days?: CardDay[]
 }
 
 export type StoryModel = {
@@ -416,13 +424,28 @@ export async function fetchKoboFormSubmissions(assetUid: string, signal?: AbortS
 }
 
 // အောက်ပါ review/sync/image လုပ်ဆောင်ချက်များသည် Bearer auth လိုအပ်သည့် /api/admin/climate route များနှင့် ကိုက်ညီသည်။
-export async function fetchClimateReportsForReview(status: 'pending' | 'approved' = 'pending'): Promise<ClimateReport[]> {
-  const params = new URLSearchParams({ status })
-  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports?${params}`, {
-    headers: getAuthHeaders(),
-  })
-  if (!response.ok) throw new Error(await readApiError(response, 'Unable to load the review queue.'))
-  return response.json() as Promise<ClimateReport[]>
+export async function fetchClimateReportsForReview(status: 'all' | 'pending' | 'approved' = 'pending'): Promise<ClimateReport[]> {
+  async function fetchQueue(queueStatus: 'pending' | 'approved'): Promise<ClimateReport[]> {
+    const params = new URLSearchParams({ status: queueStatus })
+    const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports?${params}`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw new Error(await readApiError(response, 'Unable to load the review queue.'))
+    return response.json() as Promise<ClimateReport[]>
+  }
+
+  if (status !== 'all') return fetchQueue(status)
+
+  const [pendingReports, publishedReports] = await Promise.all([
+    fetchQueue('pending'),
+    fetchQueue('approved'),
+  ])
+  const reportsById = new Map(
+    [...pendingReports, ...publishedReports].map((report) => [report.id, report])
+  )
+  return Array.from(reportsById.values()).sort(
+    (left, right) => new Date(right.observationDate).getTime() - new Date(left.observationDate).getTime()
+  )
 }
 
 export async function syncKoboClimateReports(): Promise<{
@@ -475,6 +498,29 @@ export async function fetchClimateReportImage(reportId: string): Promise<Blob> {
   })
   if (!response.ok) throw new Error(await readApiError(response, 'Unable to load report photo.'))
   return response.blob()
+}
+
+export async function saveClimateReportImage(
+  reportId: string,
+  imageData: string,
+  consentGiven: boolean
+): Promise<ClimateReport> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports/${encodeURIComponent(reportId)}/image`, {
+    method: 'PUT',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ imageData, consentGiven }),
+  })
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to save report photo.'))
+  return response.json() as Promise<ClimateReport>
+}
+
+export async function removeClimateReportImage(reportId: string): Promise<ClimateReport> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/climate/reports/${encodeURIComponent(reportId)}/image`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  if (!response.ok) throw new Error(await readApiError(response, 'Unable to remove report photo.'))
+  return response.json() as Promise<ClimateReport>
 }
 
 export function getPublicClimateReportImageUrl(imagePath: string): string {

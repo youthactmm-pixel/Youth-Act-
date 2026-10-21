@@ -5,6 +5,7 @@ import { divIcon, type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
 import { ArrowRight, CloudSun, LocateFixed, MapPin, Search, X } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import { fetchGoogleSheetTowns, fetchTowns, type TownModel } from '@/services/Api'
+import TopNavbar from '@/components/ui/topnavbar'
 
 const YANGON: LatLngExpression = [16.8661, 96.1951]
 
@@ -202,7 +203,9 @@ export default function YangonWeatherPage() {
   }
 
   return (
-    <main className="weather-picker">
+    <>
+      <TopNavbar />
+      <main className="weather-picker">
       <header className="weather-picker-header">
         <Link className="weather-picker-brand" to="/" aria-label="Back to Youth Act home">
           <span className="weather-picker-brand-icon"><CloudSun size={20} /></span>
@@ -278,6 +281,7 @@ export default function YangonWeatherPage() {
           <ArrowRight size={18} aria-hidden="true" />
         </button>
       </footer>
-    </main>
+      </main>
+    </>
   )   
 }

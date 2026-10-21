@@ -40,6 +40,14 @@ const cardSchema = new Schema(
       type: [String],
       default: [],
     },
+    days: {
+      type: [{
+        title: { type: String, required: true, trim: true, maxlength: 120 },
+        description: { type: String, required: true, trim: true, maxlength: 10000 },
+        image: { type: String, trim: true, default: '' },
+      }],
+      default: [],
+    },
   },
   {
     collection: 'cards',
@@ -173,6 +181,9 @@ const climateReportSchema = new Schema(
     },
     sourceImageUrl: { type: String, trim: true, default: '' },
     sourceImageConsent: { type: Boolean, default: false },
+    adminImageData: { type: String, default: '' },
+    adminImageConsent: { type: Boolean, default: false },
+    imageRemoved: { type: Boolean, default: false },
     publicImageApproved: { type: Boolean, default: false },
     sourceDescription: { type: String, trim: true, maxlength: 2000, default: '' },
     approvedDescription: { type: String, trim: true, maxlength: 1000, default: '' },

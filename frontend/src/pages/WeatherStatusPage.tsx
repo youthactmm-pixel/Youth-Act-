@@ -13,6 +13,6 @@ export default function WeatherStatusPage() {
     Math.abs(longitude) <= 180
 
   // မမှန်ကန်သော coordinates ကိုရွေးချယ်မှုစာမျက်နှာသို့ပြန်ပို့ပြီး၊ မှန်လျှင် map သို့လွှဲသည်။
-  if (!hasValidCoordinates) return <Navigate to="/yangon-weather" replace />
+  if (!hasValidCoordinates) return <Navigate to="/community-map" replace />
   return <Navigate to={`/community-map?${searchParams.toString()}`} replace />
 }

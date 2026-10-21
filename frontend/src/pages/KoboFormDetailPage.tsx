@@ -67,7 +67,7 @@ export default function KoboFormDetailPage() {
 
   return (
     <div className="app-shell inner-page">
-      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+      <TopNavbar />
       <main>
         <section className="kobo-form-page shell">
           <Link className="project-back-link" to="/community-map">← Community map</Link>

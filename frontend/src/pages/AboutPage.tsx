@@ -49,7 +49,7 @@ export default function AboutPage() {
 
   return (
     <div className="app-shell inner-page about-page">
-      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+      <TopNavbar />
 
       <main>
         <section className="about-page-hero shell">

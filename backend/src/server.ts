@@ -48,6 +48,13 @@ function serializeCard(card: any) {
     images: Array.isArray(plainCard?.images) && plainCard.images.length > 0
       ? plainCard.images
       : plainCard?.image ? [plainCard.image] : [],
+    days: Array.isArray(plainCard?.days)
+      ? plainCard.days.map((day: { title?: string; description?: string; image?: string }) => ({
+          title: day.title ?? '',
+          description: day.description ?? '',
+          image: day.image ?? '',
+        }))
+      : [],
   }
 }
 
@@ -77,6 +84,31 @@ function getCardImages(body: Record<string, unknown>): string[] | null {
     return null
   }
   return images
+}
+
+function getCardDays(body: Record<string, unknown>): Array<{ title: string; description: string; image: string }> | null {
+  const submittedDays = body.days
+  if (submittedDays === undefined) return []
+  if (!Array.isArray(submittedDays)) return null
+
+  const days: Array<{ title: string; description: string; image: string }> = []
+  for (const day of submittedDays) {
+    if (!day || typeof day !== 'object' || Array.isArray(day)) return null
+    const { title, description, image } = day as Record<string, unknown>
+    if (
+      typeof title !== 'string' ||
+      !title.trim() ||
+      title.trim().length > 120 ||
+      typeof description !== 'string' ||
+      !description.trim() ||
+      description.trim().length > 10000 ||
+      (image !== undefined && typeof image !== 'string')
+    ) {
+      return null
+    }
+    days.push({ title: title.trim(), description: description.trim(), image: typeof image === 'string' ? image : '' })
+  }
+  return days
 }
 
 function serializeTown(town: any) {
@@ -595,7 +627,7 @@ async function syncKoboReports() {
         imported += upsertResult.upsertedCount
         if (normalized.sourceImageUrl || normalized.sourceImageConsent) {
           const photoUpdate = await ClimateReport.updateOne(
-            { externalId: normalized.externalId, status: { $ne: 'rejected' } },
+            { externalId: normalized.externalId, status: { $ne: 'rejected' }, imageRemoved: { $ne: true } },
             { $set: { sourceImageUrl: normalized.sourceImageUrl, sourceImageConsent: normalized.sourceImageConsent } }
           )
           if (normalized.sourceImageUrl && (photoUpdate.modifiedCount || photoUpdate.matchedCount)) photosSaved += 1
@@ -627,6 +659,11 @@ async function syncKoboReports() {
 function serializeClimateReport(report: any, publicView = false) {
   const latitude = Number(report.latitude)
   const longitude = Number(report.longitude)
+  const hasAdminImage = typeof report.adminImageData === 'string' && report.adminImageData.length > 0
+  const hasImage = hasAdminImage || (!report.imageRemoved && Boolean(report.sourceImageUrl))
+  const imageConsentGiven = hasAdminImage
+    ? Boolean(report.adminImageConsent)
+    : !report.imageRemoved && Boolean(report.sourceImageConsent)
   const common = {
     id: report._id?.toString() ?? report.id,
     township: report.township,
@@ -645,7 +682,7 @@ function serializeClimateReport(report: any, publicView = false) {
     ? {
         ...common,
         description: sanitizePublicDescription(report.approvedDescription),
-        imageUrl: report.publicImageApproved && report.sourceImageConsent && report.sourceImageUrl
+        imageUrl: report.publicImageApproved && imageConsentGiven && hasImage
           ? `/api/climate/reports/${report._id?.toString() ?? report.id}/image`
           : undefined,
       }
@@ -653,14 +690,35 @@ function serializeClimateReport(report: any, publicView = false) {
         ...common,
         sourceDescription: report.sourceDescription,
         approvedDescription: report.approvedDescription,
-        hasImage: Boolean(report.sourceImageUrl),
-        imageConsentGiven: Boolean(report.sourceImageConsent),
+        hasImage,
+        imageConsentGiven,
         publicImageApproved: Boolean(report.publicImageApproved),
       }
 }
 
-// Kobo ရှိပုံကို URL/host/type စစ်ပြီး API မှတစ်ဆင့် လုံခြုံစွာ ပြန်ပို့သည်။
+// Admin-uploaded image များကို DB မှပြန်ပို့ပြီး Kobo image များကို allowlisted URL မှသာ proxy လုပ်သည်။
 async function sendClimateReportImage(report: any, response: express.Response) {
+  if (typeof report.adminImageData === 'string' && report.adminImageData) {
+    const match = report.adminImageData.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/)
+    if (!match) {
+      response.status(415).json({ message: 'The stored report image format is not supported.' })
+      return
+    }
+    const image = Buffer.from(match[2], 'base64')
+    response.set({
+      'Content-Type': match[1],
+      'Content-Length': String(image.byteLength),
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    })
+    response.send(image)
+    return
+  }
+
+  if (report.imageRemoved) {
+    response.status(404).json({ message: 'No report image is available.' })
+    return
+  }
   const sourceUrl = typeof report.sourceImageUrl === 'string' ? report.sourceImageUrl : ''
   if (!sourceUrl) {
     response.status(404).json({ message: 'No report image is available.' })
@@ -902,7 +960,11 @@ app.get('/api/climate/reports/:id/image', async (request, response) => {
       status: 'approved',
       approvedDescription: { $regex: /\S/ },
       publicImageApproved: true,
-      sourceImageConsent: true,
+      imageRemoved: { $ne: true },
+      $or: [
+        { adminImageData: { $regex: /^data:image\/(?:jpeg|png|webp);base64,/ }, adminImageConsent: true },
+        { sourceImageUrl: { $regex: /\S/ }, sourceImageConsent: true },
+      ],
     }).lean()
     if (!report) {
       response.status(404).json({ message: 'Climate report image not found.' })
@@ -939,12 +1001,14 @@ app.get('/api/climate/reports', async (_request, response) => {
 app.get('/api/admin/climate/reports', requireAdmin, async (request, response) => {
   try {
     const status = typeof request.query.status === 'string' ? request.query.status : 'pending'
-    if (!['pending', 'approved', 'rejected'].includes(status)) {
+    if (!['all', 'pending', 'approved', 'rejected'].includes(status)) {
       response.status(400).json({ message: 'Invalid report status' })
       return
     }
     const reports = await ClimateReport.find(
-      status === 'pending'
+      status === 'all'
+        ? { status: { $in: ['pending', 'approved'] } }
+        : status === 'pending'
         ? {
             $or: [
               { status: 'pending' },
@@ -988,6 +1052,91 @@ app.get('/api/admin/climate/reports/:id/image', requireAdmin, async (request, re
   }
 })
 
+app.put('/api/admin/climate/reports/:id/image', requireAdmin, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(404).json({ message: 'Climate report not found.' })
+    return
+  }
+  const imageData = request.body?.imageData
+  const consentGiven = request.body?.consentGiven
+  const match = typeof imageData === 'string'
+    ? imageData.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/)
+    : null
+  if (!match || imageData.length > 8 * 1024 * 1024) {
+    response.status(400).json({ message: 'Choose a valid JPEG, PNG, or WebP image smaller than 5 MB.' })
+    return
+  }
+  const decodedImage = Buffer.from(match[2], 'base64')
+  const hasValidSignature = match[1] === 'image/jpeg'
+    ? decodedImage.byteLength >= 3 && decodedImage[0] === 0xff && decodedImage[1] === 0xd8 && decodedImage[2] === 0xff
+    : match[1] === 'image/png'
+      ? decodedImage.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      : decodedImage.byteLength >= 12 &&
+        decodedImage.toString('ascii', 0, 4) === 'RIFF' &&
+        decodedImage.toString('ascii', 8, 12) === 'WEBP'
+  if (
+    !hasValidSignature ||
+    decodedImage.byteLength > 5 * 1024 * 1024 ||
+    decodedImage.toString('base64') !== match[2] ||
+    typeof consentGiven !== 'boolean'
+  ) {
+    response.status(400).json({ message: 'The image is invalid or too large, or photo permission was not specified.' })
+    return
+  }
+
+  try {
+    const report = await ClimateReport.findByIdAndUpdate(
+      request.params.id,
+      {
+        sourceImageUrl: '',
+        sourceImageConsent: false,
+        adminImageData: imageData,
+        adminImageConsent: consentGiven,
+        imageRemoved: false,
+        publicImageApproved: false,
+      },
+      { new: true, runValidators: true }
+    )
+    if (!report) {
+      response.status(404).json({ message: 'Climate report not found.' })
+      return
+    }
+    response.json(serializeClimateReport(report))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to save report image'
+    response.status(400).json({ message: 'Unable to save report image.', error: errorMessage })
+  }
+})
+
+app.delete('/api/admin/climate/reports/:id/image', requireAdmin, async (request, response) => {
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(404).json({ message: 'Climate report not found.' })
+    return
+  }
+  try {
+    const report = await ClimateReport.findByIdAndUpdate(
+      request.params.id,
+      {
+        sourceImageUrl: '',
+        sourceImageConsent: false,
+        adminImageData: '',
+        adminImageConsent: false,
+        imageRemoved: true,
+        publicImageApproved: false,
+      },
+      { new: true, runValidators: true }
+    )
+    if (!report) {
+      response.status(404).json({ message: 'Climate report not found.' })
+      return
+    }
+    response.json(serializeClimateReport(report))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unable to remove report image'
+    response.status(500).json({ message: 'Unable to remove report image.', error: errorMessage })
+  }
+})
+
 app.post('/api/admin/climate/sync', requireAdmin, async (_request, response) => {
   try {
     const result = await syncKoboReports()
@@ -1028,7 +1177,11 @@ app.put('/api/admin/climate/reports/:id', requireAdmin, async (request, response
     }
     if (
       request.body?.publicImageApproved === true &&
-      (!existingReport.sourceImageUrl || !existingReport.sourceImageConsent)
+      (
+        existingReport.adminImageData
+          ? !existingReport.adminImageConsent
+          : existingReport.imageRemoved || !existingReport.sourceImageUrl || !existingReport.sourceImageConsent
+      )
     ) {
       response.status(400).json({ message: 'The report has no photo approved for public sharing.' })
       return
@@ -1347,8 +1500,17 @@ app.get('/api/projects/:id', async (request, response) => {
 app.post('/api/cards', requireAdmin, async (request, response) => {
   try {
     const images = getCardImages(request.body ?? {})
+    const days = getCardDays(request.body ?? {})
     if (!images) {
       response.status(400).json({ message: 'Attach between 1 and 8 valid card images.' })
+      return
+    }
+    if (!days) {
+      response.status(400).json({ message: 'Each project day needs a title and description, with an optional image.' })
+      return
+    }
+    if (images.reduce((total, image) => total + image.length, 0) + days.reduce((total, day) => total + day.image.length, 0) > 8 * 1024 * 1024) {
+      response.status(400).json({ message: 'Card images and day photos must total 8 MB or less.' })
       return
     }
     const newCard = await Card.create({
@@ -1359,6 +1521,7 @@ app.post('/api/cards', requireAdmin, async (request, response) => {
       status: request.body.status ?? 'active',
       image: images[0],
       images,
+      days,
     })
 
     response.status(201).json(serializeCard(newCard))
@@ -1371,8 +1534,17 @@ app.post('/api/cards', requireAdmin, async (request, response) => {
 app.put('/api/cards/:id', requireAdmin, async (request, response) => {
   try {
     const images = getCardImages(request.body ?? {})
+    const days = getCardDays(request.body ?? {})
     if (!images) {
       response.status(400).json({ message: 'Attach between 1 and 8 valid card images.' })
+      return
+    }
+    if (!days) {
+      response.status(400).json({ message: 'Each project day needs a title and description, with an optional image.' })
+      return
+    }
+    if (images.reduce((total, image) => total + image.length, 0) + days.reduce((total, day) => total + day.image.length, 0) > 8 * 1024 * 1024) {
+      response.status(400).json({ message: 'Card images and day photos must total 8 MB or less.' })
       return
     }
     const payload = {
@@ -1383,6 +1555,7 @@ app.put('/api/cards/:id', requireAdmin, async (request, response) => {
       status: request.body.status ?? 'active',
       image: images[0],
       images,
+      days,
     }
 
     const card = await Card.findByIdAndUpdate(request.params.id, payload, {

@@ -20,7 +20,7 @@ export default function ProgramsPage() {
 
   return (
     <div className="app-shell inner-page">
-      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+      <TopNavbar />
       <main>
         <section className="programs-hero shell">
           <div className="programs-hero-copy">

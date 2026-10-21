@@ -1,6 +1,5 @@
 import { ArrowDown, ArrowRight, ArrowUpRight, Handshake, Lightbulb, Sprout, UsersRound } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import Footer from '@/components/ui/footer'
 import TopNavbar from '@/components/ui/topnavbar'
 
@@ -73,8 +72,6 @@ const partnershipSteps = [
 
 export default function WhoWeArePage() {
   const { pathname } = useLocation()
-  const navigate = useNavigate()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // လမ်းကြောင်းအလိုက် မစ်ရှင်၊ ခေါင်းဆောင်မှု သို့မဟုတ် မိတ်ဖက်ဆိုင်ရာ အကြောင်းအရာကို ရွေးသည်။
   const pageKey: PageKey = pathname === '/leadership'
     ? 'leadership'
@@ -85,36 +82,7 @@ export default function WhoWeArePage() {
 
   return (
     <div className={`app-shell inner-page who-page who-page--${pageKey}`}>
-      <TopNavbar mobileMenuOpen={mobileMenuOpen} onMobileMenuToggle={() => setMobileMenuOpen((open) => !open)} />
-      <div className={`mobile-nav-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} />
-      <aside className={`mobile-nav-drawer ${mobileMenuOpen ? 'open' : ''}`} aria-label="Mobile navigation">
-        <div className="mobile-nav-drawer-header">
-          <Link className="brand brand-mobile" to="/" onClick={() => setMobileMenuOpen(false)}>
-            <span className="brand-mark"><img src="/tran-logo.png" alt="" /></span>
-            <span>YOUTH ACT</span>
-          </Link>
-          <button className="mobile-menu-close" type="button" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)}>×</button>
-        </div>
-        <div className="mobile-nav-drawer-content">
-          <nav className="mobile-nav-section" aria-label="Main navigation">
-            {[
-              ['/about', 'About us'],
-              ['/mission', 'Mission & values'],
-              ['/leadership', 'Leadership'],
-              ['/partnerships', 'Partnerships'],
-              ['/programs', 'Programs'],
-              ['/stories', 'Stories'],
-              ['/community-map', 'Community map'],
-            ].map(([to, label]) => (
-              <Link className="mobile-nav-link" key={to} to={to} onClick={() => setMobileMenuOpen(false)}>{label}</Link>
-            ))}
-          </nav>
-          <button className="mobile-nav-cta" type="button" onClick={() => {
-            navigate('/yangon-weather')
-            setMobileMenuOpen(false)
-          }}>Check local weather <ArrowUpRight size={15} /></button>
-        </div>
-      </aside>
+      <TopNavbar />
       <main>
         {/* ရွေးထားသော pageKey အလိုက် သက်ဆိုင်ရာအပိုင်းကိုသာ ပြသသည်။ */}
         <section className="who-hero shell">

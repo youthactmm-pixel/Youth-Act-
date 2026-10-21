@@ -12,7 +12,6 @@ import { Component } from 'react';
 import { useEffect } from 'react';
 
 import { HomePage } from './pages/mainpage';
-import YangonWeatherPage from './pages/YangonWeatherPage';
 import WeatherStatusPage from './pages/WeatherStatusPage';
 import CardAdminPage from './pages/CardAdminPage';
 import AboutPage from './pages/AboutPage';
@@ -242,6 +241,7 @@ function App() {
               <Route path="stories" element={<Navigate to="/admin" replace />} />
               <Route path="towns" element={<Navigate to="/admin" replace />} />
               <Route path="reports" element={<ClimateReportReviewRoute />} />
+              <Route path="reports/:reportId" element={<ClimateReportReviewRoute />} />
             </Route>
 
             <Route
@@ -253,7 +253,7 @@ function App() {
 
             <Route
               path="/yangon-weather"
-              element={<YangonWeatherPage />}
+              element={<Navigate to="/community-map" replace />}
             />
             <Route
               path="/weather-status"

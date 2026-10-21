@@ -51,7 +51,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="app-shell inner-page">
-      <TopNavbar mobileMenuOpen={false} onMobileMenuToggle={() => undefined} />
+      <TopNavbar />
       <main>
         {loading && (
           <section className="project-detail-page shell project-detail-loading" role="status" aria-label="Loading project details">
@@ -103,7 +103,10 @@ export default function ProjectDetailPage() {
             </div>
 
             {projectImages.length > 0 && (
-              <div className="project-detail-gallery" aria-label="Project photos">
+              <div
+                className={`project-detail-gallery${projectImages.length === 1 ? ' project-detail-gallery-single' : ''}`}
+                aria-label="Project photos"
+              >
                 {projectImages.map((image, index) => (
                   <img
                     className={index === 0 ? 'project-detail-photo project-detail-photo-featured' : 'project-detail-photo'}
@@ -122,6 +125,36 @@ export default function ProjectDetailPage() {
               </div>
               <FormattedText as="p" text={project.description} />
             </div>
+
+            {!!project.days?.length && (
+              <section className="project-days" aria-labelledby="project-days-title">
+                <header className="project-days-heading">
+                  <p className="eyebrow">The journey</p>
+                  <h2 id="project-days-title">Day by day</h2>
+                </header>
+                <div className="project-days-list">
+                  {project.days.map((day, index) => (
+                    <article
+                      className={`project-day${day.image ? '' : ' project-day-without-image'}`}
+                      key={`${day.title}-${index}`}
+                    >
+                      {day.image && (
+                        <img
+                          className="project-day-image"
+                          src={day.image}
+                          alt={`${project.title}: ${day.title}`}
+                        />
+                      )}
+                      <div className="project-day-copy">
+                        <span className="project-day-number">DAY {String(index + 1).padStart(2, '0')}</span>
+                        <h3>{day.title}</h3>
+                        <FormattedText as="p" text={day.description} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
           </section>
         )}
         <Footer />

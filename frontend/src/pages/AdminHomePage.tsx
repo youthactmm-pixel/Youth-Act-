@@ -82,26 +82,26 @@ export default function AdminHomePage() {
         <header className="admin-content-heading">
           <div>
             <p className="eyebrow">Website content</p>
-            <h2 id="admin-content-title">Cards and projects</h2>
-            <p>These cards appear on the website and link to their project detail pages.</p>
+            <h2 id="admin-content-title">Projects</h2>
+            <p>These projects appear on the website and link to their project detail pages.</p>
           </div>
           <div className="admin-content-shortcuts">
-            <Link to="/admin/cards">Create card <ArrowUpRight size={15} /></Link>
+            <Link to="/admin/cards">Create Project <ArrowUpRight size={15} /></Link>
           </div>
         </header>
 
-        {/* Card များမပြမီ loading/error ကိုပြပြီး၊ data ရလာလျှင် project card များကို map ဖြင့် ဖန်တီးသည်။ */}
+        {/* Project များမပြမီ loading/error ကိုပြပြီး၊ data ရလာလျှင် project card များကို map ဖြင့် ဖန်တီးသည်။ */}
         {cardsError && <p className="admin-content-error" role="alert">{cardsError}</p>}
         {isLoadingCards ? (
           <p className="admin-content-empty" role="status">Loading cards and projects…</p>
         ) : cards.length === 0 ? (
           <div className="admin-content-empty">
-            <p>No cards or projects have been created yet.</p>
-            <Link to="/admin/cards">Create your first card <ArrowUpRight size={15} /></Link>
+            <p>No projects have been created yet.</p>
+            <Link to="/admin/cards">Create your first Project <ArrowUpRight size={15} /></Link>
           </div>
         ) : (
           <div className="admin-content-list">
-            {/* Card တစ်ခုစီတွင် ပထမပုံ၊ အချက်အလက်နဲ့ ကြည့်ရန်/ပြင်ဆင်ရန် link များကို ချိတ်ဆက်ထားသည်။ */}
+            {/* Project တစ်ခုစီတွင် ပထမပုံ၊ အချက်အလက်နဲ့ ကြည့်ရန်/ပြင်ဆင်ရန် link များကို ချိတ်ဆက်ထားသည်။ */}
             {cards.map((card) => {
               const images = card.images?.length ? card.images : [card.image]
               return (
@@ -147,7 +147,7 @@ export default function AdminHomePage() {
           ) : (
             <div className="community-observation-grid">
               {/* UI မလေးစေရန် report အများဆုံး 30 ခုသာပြသည်။ issue/date helper များက card စာသားကို ပြင်ဆင်ပေးသည်။ */}
-              {filteredReports.slice(0, 30).map((report) => (
+              {filteredReports.slice(0, 10).map((report) => (
                 <article className="community-observation-card" key={report.id}>
                   {report.imageUrl && (
                     <img
@@ -180,10 +180,10 @@ export default function AdminHomePage() {
               ))}
             </div>
           )}
-          {filteredReports.length > 30 && (
+          {filteredReports.length > 10 && (
             // 30 ခုထက်ပိုရှိလျှင် အောက်ပါစာသားဖြင့် ပြသထားသည့်အရေအတွက်ကို အသုံးပြုသူအား အသိပေးသည်။
             <p className="community-observations-footnote">
-              Showing the latest 30 of {filteredReports.length} approved observations.
+              Showing the latest 10 of {filteredReports.length} approved observations.
             </p>
           )}
         </section>
